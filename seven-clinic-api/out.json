@@ -1,0 +1,33 @@
+{
+  "u": [
+    {
+      "id": 1,
+      "nome": "Profissional Maria",
+      "email": "maria@sevenclinic.com",
+      "senha_hash": "senha123",
+      "telefone": "(41) 99999-9999",
+      "tipo_usuario": "profissional",
+      "foto_url": null
+    },
+    {
+      "id": 2,
+      "nome": "YASMIN DOS SANTOS PEREIRA",
+      "email": "yasmindoss.per@gmail.com",
+      "senha_hash": "2607",
+      "telefone": "41991031688",
+      "tipo_usuario": "cliente",
+      "foto_url": null
+    }
+  ],
+  "p": [
+    {
+      "id": 1,
+      "nome": "Profissional Maria",
+      "email": "maria@sevenclinic.com",
+      "senha_hash": "$2b$10$BolpeQ.1anOP2M8Au78jSuFgIweV8rdiTsnbLfTgGIRIVpXC802mW",
+      "telefone": "(41) 99999-9999",
+      "foto_url": null,
+      "role": "profissional"
+    }
+  ]
+}
