@@ -10,6 +10,7 @@ import PerfilCliente from './pages/PerfilCliente';
 import PerfilFuncionaria from './pages/PerfilFuncionaria';
 import MeusClientes from './pages/MeusClientes';
 import RedefinirSenha from './pages/RedefinirSenha';
+import PoliticaPrivacidade from './pages/PoliticaPrivacidade';
 import ProtectedRoute from './components/ProtectedRoute';
 import './App.css';
 
@@ -23,6 +24,7 @@ function App() {
           <Route path="/recuperar-senha" element={<RecuperarSenha />} />
           <Route path="/redefinir-senha" element={<RedefinirSenha />} />
           <Route path="/cadastro" element={<Cadastro />} />
+          <Route path="/politica-de-privacidade" element={<PoliticaPrivacidade />} />
           <Route path="/painel-cliente" element={<ProtectedRoute><PainelCliente /></ProtectedRoute>} />
           <Route path="/painel-funcionaria" element={<ProtectedRoute><PainelFuncionaria /></ProtectedRoute>} />
           <Route path="/perfil-cliente" element={<ProtectedRoute><PerfilCliente /></ProtectedRoute>} />

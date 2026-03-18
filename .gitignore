@@ -19,6 +19,8 @@ database.sqlite
 .env.development.local
 .env.test.local
 .env.production.local
+# Keep .env.example for documentation
+!.env.example
 
 # Logs
 logs

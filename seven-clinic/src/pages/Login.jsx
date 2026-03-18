@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import axios from 'axios';
+import api from '../api';
 
 const Login = () => {
   const navigate = useNavigate();
@@ -13,11 +13,11 @@ const Login = () => {
   const handleLogin = async (e) => {
     e.preventDefault();
     setErro('');
-    
+
     try {
-        const response = await axios.post(`${import.meta.env.VITE_API_URL}/api/login`, { email, senha, isProfissional });
-        const user = response.data.user;
-        
+        const response = await api.post('/api/login', { email, senha, isProfissional });
+        const { user, token } = response.data;
+
         // Validação básica se a aba selecionada condiz com o tipo da conta
         if (isProfissional && user.tipo_usuario !== 'profissional' && user.tipo_usuario !== 'admin') {
             setErro('Acesso negado. Esta conta não é de um perfil profissional.');
@@ -27,16 +27,20 @@ const Login = () => {
             setErro('Profissional, utilize a aba correta para acessar o sistema.');
             return;
         }
-        
-        // Lógica do Me Manter Conectado
+
+        // Salva o token JWT e dados do usuário
         if (lembrarMim) {
+            localStorage.setItem('authToken', token);
             localStorage.setItem('userLogado', JSON.stringify(user));
+            sessionStorage.removeItem('authToken');
             sessionStorage.removeItem('userLogado');
         } else {
+            sessionStorage.setItem('authToken', token);
             sessionStorage.setItem('userLogado', JSON.stringify(user));
+            localStorage.removeItem('authToken');
             localStorage.removeItem('userLogado');
         }
-        
+
         if (isProfissional) {
             navigate('/painel-funcionaria');
         } else {

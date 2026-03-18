@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import axios from 'axios';
+import api from '../api';
 
 const Cadastro = () => {
     const navigate = useNavigate();
@@ -13,6 +13,7 @@ const Cadastro = () => {
     const [etapa, setEtapa] = useState('formulario'); // 'formulario' | 'verificacao'
     const [codigo, setCodigo] = useState('');
     const [carregando, setCarregando] = useState(false);
+    const [aceitouTermos, setAceitouTermos] = useState(false);
 
     const validarSenhaForte = (senha, nomeUsuario) => {
         if (senha.length < 10) return "A senha deve ter pelo menos 10 caracteres.";
@@ -37,10 +38,11 @@ const Cadastro = () => {
 
         const erroSenha = validarSenhaForte(senha, nome);
         if (erroSenha) { setErro(erroSenha); return; }
+        if (!aceitouTermos) { setErro('Você precisa aceitar a Política de Privacidade para se cadastrar.'); return; }
 
         setCarregando(true);
         try {
-            const res = await axios.post(`${import.meta.env.VITE_API_URL}/api/usuarios`, {
+            const res = await api.post('/api/usuarios', {
                 nome, telefone, email, senha, tipo_usuario: 'cliente'
             });
             setSucesso(res.data.message);
@@ -60,7 +62,7 @@ const Cadastro = () => {
 
         setCarregando(true);
         try {
-            await axios.post(`${import.meta.env.VITE_API_URL}/api/verificar-email`, { email, codigo });
+            await api.post('/api/verificar-email', { email, codigo });
             setSucesso('E-mail verificado! Conta criada com sucesso. Redirecionando...');
             setTimeout(() => navigate('/login'), 2500);
         } catch (error) {
@@ -109,7 +111,24 @@ const Cadastro = () => {
                                     <label htmlFor="senha">Senha</label>
                                     <input type="password" id="senha" value={senha} onChange={(e) => setSenha(e.target.value)} required />
                                 </div>
-                                <button type="submit" className="btn-primary" disabled={carregando}>
+                                <div style={{margin: '15px 0', fontSize: '0.85rem'}}>
+                                    <label style={{display: 'flex', alignItems: 'flex-start', gap: '8px', cursor: 'pointer', color: '#666', lineHeight: '1.4'}}>
+                                        <input
+                                            type="checkbox"
+                                            checked={aceitouTermos}
+                                            onChange={(e) => setAceitouTermos(e.target.checked)}
+                                            style={{marginTop: '2px', cursor: 'pointer', flexShrink: 0}}
+                                        />
+                                        <span>
+                                            Li e concordo com a{' '}
+                                            <Link to="/politica-de-privacidade" target="_blank" style={{color:'#654b42', fontWeight: '600'}}>
+                                                Política de Privacidade
+                                            </Link>.
+                                            Entendo que meus dados serão usados para gerenciar meus agendamentos e enviar lembretes.
+                                        </span>
+                                    </label>
+                                </div>
+                                <button type="submit" className="btn-primary" disabled={carregando || !aceitouTermos}>
                                     {carregando ? 'ENVIANDO...' : 'CADASTRAR'}
                                 </button>
                             </form>
