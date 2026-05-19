@@ -1,14 +1,13 @@
 import axios from 'axios';
 
 /**
- * Cria uma instância do axios que automaticamente injeta o token JWT
- * de autenticação em todas as requisições que precisam de autenticação.
+ * Axios instance que injeta o token JWT automaticamente.
  */
 const api = axios.create({
     baseURL: import.meta.env.VITE_API_URL,
 });
 
-// Interceptor: adiciona o token JWT em todas as requisições
+// Interceptor de REQUEST: adiciona o token JWT se existir
 api.interceptors.request.use((config) => {
     const token = localStorage.getItem('authToken') || sessionStorage.getItem('authToken');
     if (token) {
@@ -17,18 +16,22 @@ api.interceptors.request.use((config) => {
     return config;
 });
 
-// Interceptor: se o token expirar (403), força logout
+// Interceptor de RESPONSE: se o token expirar (403), força logout
+// MAS só redireciona se NÃO estivermos já na página de login
 api.interceptors.response.use(
     (response) => response,
     (error) => {
-        if (error.response?.status === 403 || error.response?.status === 401) {
-            // Token expirado: limpa a sessão e redireciona para login
+        const isTokenError = error.response?.status === 403;
+        const jaEstaNoLogin = window.location.pathname === '/login';
+
+        if (isTokenError && !jaEstaNoLogin) {
             localStorage.removeItem('authToken');
             localStorage.removeItem('userLogado');
             sessionStorage.removeItem('authToken');
             sessionStorage.removeItem('userLogado');
             window.location.href = '/login';
         }
+
         return Promise.reject(error);
     }
 );

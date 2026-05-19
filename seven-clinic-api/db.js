@@ -16,7 +16,7 @@ const db = new sqlite3.Database(dbPath, (err) => {
 // Função para criar as estruturas do banco de dados se não existirem
 function inicializarBanco() {
     db.serialize(() => {
-        
+
         // TABELA: usuarios (nossos Clientes)
         db.run(`
             CREATE TABLE IF NOT EXISTS usuarios (
@@ -66,7 +66,7 @@ function inicializarBanco() {
                 isBloqueio BOOLEAN DEFAULT 0
             )
         `);
-        
+
         // TABELA: recuperacao_senha
         db.run(`
             CREATE TABLE IF NOT EXISTS recuperacao_senha (
@@ -90,8 +90,64 @@ function inicializarBanco() {
             )
         `);
 
+        // TABELA: horarios_trabalho (Disponibilidade dos profissionais)
+        db.run(`
+            CREATE TABLE IF NOT EXISTS horarios_trabalho (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                profissional_id INTEGER NOT NULL,
+                dia_semana INTEGER NOT NULL, -- 0=Domingo, 1=Segunda, etc.
+                hora_inicio TEXT NOT NULL,
+                hora_fim TEXT NOT NULL,
+                FOREIGN KEY (profissional_id) REFERENCES profissionais(id)
+            )
+        `);
+
+        // TABELA: historico_atendimento (Prontuário/fichas de anamnese)
+        db.run(`
+            CREATE TABLE IF NOT EXISTS historico_atendimento (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                agendamento_id INTEGER,
+                usuario_id INTEGER NOT NULL,
+                profissional_id INTEGER NOT NULL,
+                descricao TEXT NOT NULL,
+                data_registro DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (agendamento_id) REFERENCES agendamentos(id),
+                FOREIGN KEY (usuario_id) REFERENCES usuarios(id),
+                FOREIGN KEY (profissional_id) REFERENCES profissionais(id)
+            )
+        `);
+
+        // TABELA: avaliacoes (Feedback do cliente)
+        db.run(`
+            CREATE TABLE IF NOT EXISTS avaliacoes (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                agendamento_id INTEGER NOT NULL,
+                usuario_id INTEGER NOT NULL,
+                nota INTEGER CHECK(nota >= 1 AND nota <= 5),
+                comentario TEXT,
+                data_avaliacao DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (agendamento_id) REFERENCES agendamentos(id),
+                FOREIGN KEY (usuario_id) REFERENCES usuarios(id)
+            )
+        `);
+
+        // TABELA: logs_notificacoes (Registro de envio de WhatsApp/Email)
+        db.run(`
+            CREATE TABLE IF NOT EXISTS logs_notificacoes (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                usuario_id INTEGER,
+                agendamento_id INTEGER,
+                tipo_notificacao TEXT NOT NULL, -- 'whatsapp' ou 'email'
+                mensagem TEXT,
+                status TEXT NOT NULL, -- 'enviado', 'falha'
+                data_envio DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (usuario_id) REFERENCES usuarios(id),
+                FOREIGN KEY (agendamento_id) REFERENCES agendamentos(id)
+            )
+        `);
+
         console.log('[SUCESSO] Tabelas criadas/verificadas com sucesso no banco de dados.');
-        
+
         // Criação de dados padrões (Seeding) para facilitar testes iniciais
         popularBancoInicial();
     });

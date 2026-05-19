@@ -40,3 +40,7 @@ lerna-debug.log*
 *.njsproj
 *.sln
 *.sw?
+
+# WhatsApp Session Data
+.wwebjs_auth/
+**/.wwebjs_auth/

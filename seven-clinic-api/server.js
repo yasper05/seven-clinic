@@ -17,7 +17,11 @@ const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173';
 // ============================================
 // MIDDLEWARES
 // ============================================
-app.use(cors());
+app.use(cors({
+    origin: '*', // Em produção, trocar pelo domínio real
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'ngrok-skip-browser-warning'],
+}));
 app.use(express.json());
 app.use((req, res, next) => { res.setHeader('ngrok-skip-browser-warning', 'true'); next(); });
 
