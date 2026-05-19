@@ -37,10 +37,10 @@ function Inicio() {
             <section id="galeria" className="secao-ambiente">
                 <h2>NOSSO AMBIENTE</h2>
                 <div className="galeria-ambiente">
-                    <img src="https://images.unsplash.com/photo-1560066984-138dadb4c035?w=400&q=80" alt="Interior 1" />
-                    <img src="https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?w=400&q=80" alt="Interior 2" />
-                    <img src="https://images.unsplash.com/photo-1470259078422-826894b933aa?w=400&q=80" alt="Interior 3" />
-                    <img src="https://images.unsplash.com/photo-1600948836101-059a1a8b4f13?w=400&q=80" alt="Interior 4" />
+                    <img src="/imagem/bonitaseven.png" alt="Interior 1" />
+                    <img src="/imagem/bonitaseven2.png" alt="Interior 2" />
+                    <img src="/imagem/cilios4.png" alt="Interior 3" />
+                    <img src="/imagem/unha2.png" alt="Interior 4" />
                 </div>
             </section>
 
@@ -49,23 +49,23 @@ function Inicio() {
                 <h2>NOSSOS SERVIÇOS</h2>
                 <div className="grid-servicos">
                     <div className="card-servico">
-                        <img src="https://images.unsplash.com/photo-1616394584738-fc6e612e71b9?w=600&q=80" alt="Cílios" />
+                        <img src="/imagem/cilios3.png" alt="Cílios" />
                         <span>CÍLIOS</span>
                     </div>
                     <div className="card-servico">
-                        <img src="https://images.unsplash.com/photo-1604654894610-df63bc536371?w=600&q=80" alt="Unhas" />
+                        <img src="/imagem/unha.png" alt="Unhas" />
                         <span>UNHAS</span>
                     </div>
                     <div className="card-servico">
-                        <img src="https://images.unsplash.com/photo-1621605815971-fbc98d665033?w=600&q=80" alt="Sobrancelha" />
+                        <img src="/imagem/bronw.png" alt="Sobrancelha" />
                         <span>SOBRANCELHA</span>
                     </div>
                     <div className="card-servico">
-                        <img src="https://images.unsplash.com/photo-1588776814546-1ffbb542d814?w=600&q=80" alt="Lip Blush" />
+                        <img src="/imagem/boca.png" alt="Lip Blush" />
                         <span>LIP BLUSH</span>
                     </div>
                     <div className="card-servico">
-                        <img src="https://images.unsplash.com/photo-1487412947147-5cebf100ffc2?w=600&q=80" alt="Maquiagem" />
+                        <img src="/imagem/maquiagem.png" alt="Maquiagem" />
                         <span>MAQUIAGEM</span>
                     </div>
                 </div>
