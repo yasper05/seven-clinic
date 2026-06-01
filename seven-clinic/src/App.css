@@ -502,6 +502,33 @@ body {
     font-size: 1.1rem;
 }
 
+.dashboard-header.colored-header {
+    background: linear-gradient(135deg, var(--bg-dark), #2a2d34);
+    padding: 30px 40px;
+    border-radius: var(--radius-lg);
+    color: var(--text-light);
+    box-shadow: var(--shadow-soft);
+    border-left: 4px solid var(--primary);
+}
+
+.dashboard-header.colored-header h1 {
+    color: var(--primary);
+}
+
+.dashboard-header.colored-header p {
+    color: #ccc;
+}
+
+.dashboard-header.colored-header .btn-primary {
+    background-color: var(--primary);
+    color: var(--text-dark);
+}
+
+.dashboard-header.colored-header .btn-primary:hover {
+    background-color: var(--primary-hover);
+    color: var(--text-light);
+}
+
 /* CARDS */
 .dashboard-cards {
     display: flex;
@@ -837,12 +864,26 @@ body {
 }
 
 .status-badge {
-    background-color: #e3f2fd;
-    color: #1565c0;
     padding: 5px 10px;
     border-radius: 4px;
     font-size: 0.8rem;
     font-weight: 600;
+    display: inline-block;
+}
+
+.status-pendente {
+    background-color: #fff3e0;
+    color: #e65100;
+}
+
+.status-concluido {
+    background-color: #e8f5e9;
+    color: #2e7d32;
+}
+
+.status-cancelado {
+    background-color: #fce4ec;
+    color: #c62828;
 }
 
 /* MODAL / FORM IN DASHBOARDS */
@@ -914,8 +955,13 @@ body {
     justify-content: flex-end;
     gap: 15px;
     margin-top: 30px;
+}
+
 .modal-content.modal-large {
-    max-width: 800px;
+    max-width: 960px;
+    width: 95vw;
+    max-height: 90vh;
+    overflow-y: auto;
 }
 
 .modal-grid {
@@ -928,7 +974,6 @@ body {
     .modal-grid {
         flex-direction: column;
     }
-}
 }
 
 .modal-form-col {

@@ -9,6 +9,25 @@ const Login = () => {
   const [senha, setSenha] = useState('');
   const [erro, setErro] = useState('');
   const [lembrarMim, setLembrarMim] = useState(false);
+  const [mostrarSenha, setMostrarSenha] = useState(false);
+
+  React.useEffect(() => {
+    const userJson = localStorage.getItem('userLogado') || sessionStorage.getItem('userLogado');
+    const token = localStorage.getItem('authToken') || sessionStorage.getItem('authToken');
+    
+    if (userJson && token) {
+      try {
+        const user = JSON.parse(userJson);
+        if (user.tipo_usuario === 'profissional' || user.tipo_usuario === 'admin') {
+          navigate('/painel-funcionaria', { replace: true });
+        } else {
+          navigate('/painel-cliente', { replace: true });
+        }
+      } catch (e) {
+        console.error("Erro ao ler dados do login persistido:", e);
+      }
+    }
+  }, [navigate]);
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -116,9 +135,34 @@ const Login = () => {
               <input type="email" id="email" placeholder="seu@email.com" value={email} onChange={(e) => setEmail(e.target.value)} required />
             </div>
 
-            <div className="input-group">
+            <div className="input-group" style={{ position: 'relative' }}>
               <label htmlFor="senha">Senha</label>
-              <input type="password" id="senha" value={senha} onChange={(e) => setSenha(e.target.value)} required />
+              <input 
+                type={mostrarSenha ? "text" : "password"} 
+                id="senha" 
+                value={senha} 
+                onChange={(e) => setSenha(e.target.value)} 
+                required 
+                style={{ paddingRight: '80px' }}
+              />
+              <button 
+                type="button"
+                onClick={() => setMostrarSenha(!mostrarSenha)}
+                style={{
+                  position: 'absolute',
+                  right: '15px',
+                  bottom: '14px',
+                  background: 'none',
+                  border: 'none',
+                  color: '#888',
+                  cursor: 'pointer',
+                  fontSize: '0.8rem',
+                  fontWeight: 'bold',
+                  textTransform: 'uppercase'
+                }}
+              >
+                {mostrarSenha ? 'Ocultar' : 'Mostrar'}
+              </button>
             </div>
 
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', fontSize: '0.85rem' }}>

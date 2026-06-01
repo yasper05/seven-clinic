@@ -88,18 +88,20 @@ async function enviarMensagemWhatsApp(telefone, mensagem) {
 /**
  * Busca agendamentos para uma data específica (formato YYYY-MM-DD)
  */
+/**
+ * Busca agendamentos para uma data específica (formato YYYY-MM-DD)
+ */
 function buscarAgendamentosPorData(dataISO) {
     return new Promise((resolve, reject) => {
         const sql = `
             SELECT 
-                a.id, a.data_hora, a.status,
-                u.nome AS cliente_nome, u.telefone AS cliente_telefone,
-                p.nome AS procedimento_nome
+                a.id, a.data, a.horario, a.status, a.servico AS procedimento_nome,
+                u.nome AS cliente_nome, u.telefone AS cliente_telefone
             FROM agendamentos a
-            JOIN usuarios u ON a.usuario_id = u.id
-            JOIN procedimentos p ON a.procedimento_id = p.id
-            WHERE DATE(a.data_hora) = ?
+            LEFT JOIN usuarios u ON a.cliente_id = u.id OR a.cliente = u.nome
+            WHERE a.data = ?
               AND a.status = 'pendente'
+              AND a.isBloqueio = 0
         `;
         db.all(sql, [dataISO], (err, rows) => {
             if (err) reject(err);
@@ -110,14 +112,12 @@ function buscarAgendamentosPorData(dataISO) {
 
 /**
  * Formata a data/hora de um agendamento em texto legível
- * Ex: "2026-03-18 14:30:00" -> "14h30" e "18/03"
+ * Ex: "2026-03-18", "14:30" -> "14h30" e "18/03"
  */
-function formatarDataHora(dataHoraStr) {
-    const dt = new Date(dataHoraStr);
-    const hora = dt.getHours().toString().padStart(2, '0');
-    const min = dt.getMinutes().toString().padStart(2, '0');
-    const dia = dt.getDate().toString().padStart(2, '0');
-    const mes = (dt.getMonth() + 1).toString().padStart(2, '0');
+function formatarDataHora(dataStr, horarioStr) {
+    if (!dataStr || !horarioStr) return { hora: '00h00', data: '00/00' };
+    const [ano, mes, dia] = dataStr.split('-');
+    const [hora, min] = horarioStr.split(':');
     return { hora: `${hora}h${min}`, data: `${dia}/${mes}` };
 }
 
@@ -137,7 +137,7 @@ cron.schedule('0 9 * * *', async () => {
 
         for (const ag of agendamentos) {
             if (!ag.cliente_telefone) continue;
-            const { hora, data } = formatarDataHora(ag.data_hora);
+            const { hora, data } = formatarDataHora(ag.data, ag.horario);
             const primeiroNome = ag.cliente_nome.split(' ')[0];
 
             const mensagem =
@@ -171,7 +171,7 @@ cron.schedule('0 8 * * *', async () => {
 
         for (const ag of agendamentos) {
             if (!ag.cliente_telefone) continue;
-            const { hora } = formatarDataHora(ag.data_hora);
+            const { hora } = formatarDataHora(ag.data, ag.horario);
             const primeiroNome = ag.cliente_nome.split(' ')[0];
 
             const mensagem =

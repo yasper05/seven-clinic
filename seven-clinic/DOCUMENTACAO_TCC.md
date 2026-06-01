@@ -207,6 +207,7 @@ classDiagram
         -String email
         -String senha_hash
         -String telefone
+        -String foto_url
         +autenticar() Boolean
         +redefinirSenha()
     }
@@ -214,31 +215,95 @@ classDiagram
     class Cliente {
         +listarMeusAgendamentos()
         +solicitarAgendamento()
+        +excluirConta()
     }
 
     class Profissional {
-        -String especialidade
+        -String role
         +listarAgendaDiaria()
         +atualizarStatusAgendamento()
     }
 
+    class Procedimento {
+        -int id
+        -String nome_servico
+        -String descricao
+        -int duracao_minutos
+        -double preco
+        +obterDetalhes()
+    }
+
     class Agendamento {
         -int id
+        -String cliente
+        -String profissional
+        -String servico
         -String data
         -String horario
         -String status
-        -double valor_esperado
+        -boolean isBloqueio
         +confirmar()
         +cancelar()
         +finalizar()
     }
 
-    class ServicoProcedimento {
+    class RecuperacaoSenha {
+        -int id
+        -String email
+        -String token
+        -DateTime expiracao
+        +validarToken() Boolean
+    }
+
+    class VerificacaoEmail {
         -int id
         -String nome
-        -int duracao_minutos
-        -double preco
-        +obterDetalhes()
+        -String email
+        -String senha_hash
+        -String telefone
+        -String codigo
+        -DateTime expiracao
+        +confirmarCodigo() Boolean
+    }
+
+    class HorarioTrabalho {
+        -int id
+        -int profissional_id
+        -int dia_semana
+        -String hora_inicio
+        -String hora_fim
+        +obterHorariosDisponiveis()
+    }
+
+    class HistoricoAtendimento {
+        -int id
+        -int agendamento_id
+        -int usuario_id
+        -int profissional_id
+        -String descricao
+        -DateTime data_registro
+        +adicionarFichaAnamnese()
+    }
+
+    class Avaliacao {
+        -int id
+        -int agendamento_id
+        -int usuario_id
+        -int nota
+        -String comentario
+        -DateTime data_avaliacao
+        +enviarFeedback()
+    }
+
+    class LogNotificacao {
+        -int id
+        -int usuario_id
+        -int agendamento_id
+        -String tipo_notificacao
+        -String mensagem
+        -String status
+        -DateTime data_envio
+        +registrarEnvio()
     }
 
     Usuario <|-- Cliente : Heranca
@@ -246,7 +311,18 @@ classDiagram
     
     Cliente "1" -- "0..*" Agendamento : solicita
     Profissional "1" -- "0..*" Agendamento : realiza
-    Agendamento "*" -- "1" ServicoProcedimento : engloba
+    Agendamento "*" -- "1" Procedimento : engloba
+    
+    Profissional "1" -- "0..*" HorarioTrabalho : possui
+    Agendamento "0..1" -- "0..1" HistoricoAtendimento : gera
+    Cliente "1" -- "0..*" HistoricoAtendimento : possui
+    Profissional "1" -- "0..*" HistoricoAtendimento : registra
+    
+    Agendamento "1" -- "0..1" Avaliacao : recebe
+    Cliente "1" -- "0..*" Avaliacao : avalia
+    
+    Usuario "1" -- "0..*" LogNotificacao : recebe
+    Agendamento "0..1" -- "0..*" LogNotificacao : gera
 ```
 
 ---
@@ -259,38 +335,103 @@ O Modelo Entidade-Relacionamento mapeia as representações relacionais estátic
 erDiagram
     USUARIOS {
         int id PK
-        string nome 
+        string nome
         string email UK
-        string senha_hash 
-        string telefone 
-        string role 
+        string senha_hash
+        string telefone
+        string foto_url
+    }
+
+    PROFISSIONAIS {
+        int id PK
+        string nome
+        string email UK
+        string senha_hash
+        string telefone
+        string foto_url
+        string role
+    }
+
+    PROCEDIMENTOS {
+        int id PK
+        string nome_servico
+        string descricao
+        int duracao_minutos
+        float preco
     }
 
     AGENDAMENTOS {
         int id PK
-        int cliente_id FK
-        int profissional_id FK
-        string servico 
-        string data 
-        string horario 
-        string status 
+        string cliente
+        string profissional
+        string servico
+        string data
+        string horario
+        string status
+        boolean isBloqueio
     }
-    
-    PROCEDIMENTOS {
-        int id PK
-        string nome_servico 
-        int duracao_minutos 
-        float preco 
-    }
-    
+
     RECUPERACAO_SENHA {
         int id PK
-        string email 
-        string token 
-        datetime expiracao 
+        string email
+        string token
+        datetime expiracao
     }
-    
-    USUARIOS ||--o{ AGENDAMENTOS : "possui"
+
+    VERIFICACAO_EMAIL {
+        int id PK
+        string nome
+        string email UK
+        string senha_hash
+        string telefone
+        string codigo
+        datetime expiracao
+    }
+
+    HORARIOS_TRABALHO {
+        int id PK
+        int profissional_id FK
+        int dia_semana
+        string hora_inicio
+        string hora_fim
+    }
+
+    HISTORICO_ATENDIMENTO {
+        int id PK
+        int agendamento_id FK
+        int usuario_id FK
+        int profissional_id FK
+        string descricao
+        datetime data_registro
+    }
+
+    AVALIACOES {
+        int id PK
+        int agendamento_id FK
+        int usuario_id FK
+        int nota
+        string comentario
+        datetime data_avaliacao
+    }
+
+    LOGS_NOTIFICACOES {
+        int id PK
+        int usuario_id FK
+        int agendamento_id FK
+        string tipo_notificacao
+        string mensagem
+        string status
+        datetime data_envio
+    }
+
+    PROFISSIONAIS ||--o{ HORARIOS_TRABALHO : "possui"
+    USUARIOS ||--o{ HISTORICO_ATENDIMENTO : "possui"
+    PROFISSIONAIS ||--o{ HISTORICO_ATENDIMENTO : "registra"
+    AGENDAMENTOS ||--o| HISTORICO_ATENDIMENTO : "gera"
+    USUARIOS ||--o{ AVALIACOES : "faz"
+    AGENDAMENTOS ||--o| AVALIACOES : "recebe"
+    USUARIOS ||--o{ LOGS_NOTIFICACOES : "recebe"
+    AGENDAMENTOS ||--o{ LOGS_NOTIFICACOES : "gera"
 ```
 
 ---
