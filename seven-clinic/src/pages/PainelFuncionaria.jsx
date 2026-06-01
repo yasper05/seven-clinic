@@ -1,10 +1,14 @@
-import React, { useContext, useState } from 'react';
+import React, { useContext, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AgendamentoContext } from '../context/AgendamentoContext';
 
 const PainelFuncionaria = () => {
     const navigate = useNavigate();
-    const { agendamentos, concluirAgendamento, adicionarAgendamento } = useContext(AgendamentoContext);
+    const { agendamentos, concluirAgendamento, adicionarAgendamento, buscarAgendamentos } = useContext(AgendamentoContext);
+
+    useEffect(() => {
+        buscarAgendamentos();
+    }, []);
 
     // View states
     const [viewMode, setViewMode] = useState('day'); // 'day', 'week', 'month'
@@ -22,6 +26,7 @@ const PainelFuncionaria = () => {
     const [novoTituloBloqueio, setNovoTituloBloqueio] = useState('');
     const [novaData, setNovaData] = useState(new Date().toISOString().split('T')[0]);
     const [novoHorario, setNovoHorario] = useState('09:00');
+    const [novoHorarioRetorno, setNovoHorarioRetorno] = useState('10:00');
 
     const userLogado = JSON.parse(localStorage.getItem('userLogado') || sessionStorage.getItem('userLogado') || '{}');
     const nomeProfissional = userLogado.nome || 'Você (Profissional)';
@@ -69,11 +74,28 @@ const PainelFuncionaria = () => {
     const handleAddSubmit = (e) => {
         e.preventDefault();
         
+        let duracaoMinutos = 30; // default for appointments or simple blocks
+        
+        if (isBloqueio && novoHorario && novoHorarioRetorno) {
+            const [h1, m1] = novoHorario.split(':').map(Number);
+            const [h2, m2] = novoHorarioRetorno.split(':').map(Number);
+            const start = h1 * 60 + m1;
+            const end = h2 * 60 + m2;
+            
+            if (end > start) {
+                duracaoMinutos = end - start;
+            } else {
+                alert("O horário de retorno deve ser maior que o horário de saída!");
+                return;
+            }
+        }
+        
         const novoAgendamentoObj = {
             cliente: isBloqueio ? 'Compromisso Pessoal' : novoCliente,
             servico: isBloqueio ? (novoTituloBloqueio || 'Bloqueio de Agenda') : novoServico,
             data: novaData,
             horario: novoHorario,
+            duracao: duracaoMinutos,
             profissional: nomeProfissional,
             isBloqueio: isBloqueio // Flag indicando que é um bloqueio
         };
@@ -88,6 +110,7 @@ const PainelFuncionaria = () => {
         setNovoTituloBloqueio('');
         setNovaData(new Date().toISOString().split('T')[0]);
         setNovoHorario('09:00');
+        setNovoHorarioRetorno('10:00');
     };
 
     // Filter appointments for the professional
@@ -315,13 +338,20 @@ const PainelFuncionaria = () => {
                         <li className="active"><a href="#">Agenda</a></li>
                         <li><a href="#" onClick={(e) => { e.preventDefault(); navigate('/meus-clientes'); }}>Meus Clientes</a></li>
                         <li><a href="#" onClick={(e) => { e.preventDefault(); navigate('/perfil-funcionaria'); }}>Perfil Profissional</a></li>
-                        <li><a href="#" onClick={(e) => { e.preventDefault(); navigate('/login'); }}>Sair</a></li>
+                        <li><a href="#" onClick={(e) => { 
+                            e.preventDefault(); 
+                            localStorage.removeItem('userLogado'); 
+                            localStorage.removeItem('authToken'); 
+                            sessionStorage.removeItem('userLogado'); 
+                            sessionStorage.removeItem('authToken'); 
+                            navigate('/login'); 
+                        }}>Sair</a></li>
                     </ul>
                 </nav>
             </aside>
             
             <main className="dashboard-content">
-                <header className="dashboard-header" style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
+                <header className="dashboard-header colored-header" style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
                     <div>
                         <h1>Olá, {userLogado.nome ? userLogado.nome.split(' ')[0] : 'Profissional'}!</h1>
                         <p>Aqui está a sua agenda de trabalho.</p>
@@ -439,15 +469,21 @@ const PainelFuncionaria = () => {
                                     </div>
                                 )}
                                 
-                                <div style={{display: 'flex', gap: '15px'}}>
-                                    <div className="input-group" style={{flex: 1}}>
+                                <div style={{display: 'flex', gap: '15px', flexWrap: 'wrap'}}>
+                                    <div className="input-group" style={{flex: 1, minWidth: '120px'}}>
                                         <label>Data</label>
                                         <input type="date" value={novaData} onChange={(e) => setNovaData(e.target.value)} required />
                                     </div>
-                                    <div className="input-group" style={{flex: 1}}>
-                                        <label>Horário</label>
+                                    <div className="input-group" style={{flex: 1, minWidth: '120px'}}>
+                                        <label>{isBloqueio ? 'Horário de Saída' : 'Horário'}</label>
                                         <input type="time" value={novoHorario} onChange={(e) => setNovoHorario(e.target.value)} required />
                                     </div>
+                                    {isBloqueio && (
+                                        <div className="input-group" style={{flex: 1, minWidth: '120px'}}>
+                                            <label>Horário de Retorno</label>
+                                            <input type="time" value={novoHorarioRetorno} onChange={(e) => setNovoHorarioRetorno(e.target.value)} required />
+                                        </div>
+                                    )}
                                 </div>
 
                                 <div className="modal-actions">

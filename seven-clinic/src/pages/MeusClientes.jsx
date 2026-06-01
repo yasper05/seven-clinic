@@ -1,10 +1,14 @@
-import React, { useContext, useState } from 'react';
+import React, { useContext, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AgendamentoContext } from '../context/AgendamentoContext';
 
 const MeusClientes = () => {
     const navigate = useNavigate();
-    const { agendamentos, adicionarAgendamento } = useContext(AgendamentoContext);
+    const { agendamentos, adicionarAgendamento, buscarAgendamentos } = useContext(AgendamentoContext);
+
+    useEffect(() => {
+        if (buscarAgendamentos) buscarAgendamentos();
+    }, []);
     
     // Filtro básico apenas para visualização
     const [busca, setBusca] = useState('');
@@ -89,7 +93,14 @@ const MeusClientes = () => {
                         <li><a href="#" onClick={(e) => { e.preventDefault(); navigate('/painel-funcionaria'); }}>Agenda do Dia</a></li>
                         <li className="active"><a href="#">Meus Clientes</a></li>
                         <li><a href="#" onClick={(e) => { e.preventDefault(); navigate('/perfil-funcionaria'); }}>Perfil Profissional</a></li>
-                        <li><a href="#" onClick={(e) => { e.preventDefault(); navigate('/login'); }}>Sair</a></li>
+                        <li><a href="#" onClick={(e) => { 
+                            e.preventDefault(); 
+                            localStorage.removeItem('userLogado'); 
+                            localStorage.removeItem('authToken'); 
+                            sessionStorage.removeItem('userLogado'); 
+                            sessionStorage.removeItem('authToken'); 
+                            navigate('/login'); 
+                        }}>Sair</a></li>
                     </ul>
                 </nav>
             </aside>

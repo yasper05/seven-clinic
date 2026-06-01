@@ -57,7 +57,14 @@ const PerfilCliente = () => {
                         <li><a href="#" onClick={(e) => { e.preventDefault(); navigate('/painel-cliente'); }}>Meus Agendamentos</a></li>
                         <li><a href="#" onClick={(e) => { e.preventDefault(); navigate('/painel-cliente'); }}>Novo Agendamento</a></li>
                         <li className="active"><a href="#">Perfil</a></li>
-                        <li><a href="#" onClick={(e) => { e.preventDefault(); navigate('/login'); }}>Sair</a></li>
+                        <li><a href="#" onClick={(e) => { 
+                            e.preventDefault(); 
+                            localStorage.removeItem('userLogado'); 
+                            localStorage.removeItem('authToken'); 
+                            sessionStorage.removeItem('userLogado'); 
+                            sessionStorage.removeItem('authToken'); 
+                            navigate('/login'); 
+                        }}>Sair</a></li>
                     </ul>
                 </nav>
             </aside>

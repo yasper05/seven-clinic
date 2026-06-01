@@ -48,7 +48,14 @@ const PerfilFuncionaria = () => {
                         <li><a href="#" onClick={(e) => { e.preventDefault(); navigate('/painel-funcionaria'); }}>Agenda do Dia</a></li>
                         <li><a href="#" onClick={(e) => { e.preventDefault(); navigate('/meus-clientes'); }}>Meus Clientes</a></li>
                         <li className="active"><a href="#">Perfil Profissional</a></li>
-                        <li><a href="#" onClick={(e) => { e.preventDefault(); navigate('/login'); }}>Sair</a></li>
+                        <li><a href="#" onClick={(e) => { 
+                            e.preventDefault(); 
+                            localStorage.removeItem('userLogado'); 
+                            localStorage.removeItem('authToken'); 
+                            sessionStorage.removeItem('userLogado'); 
+                            sessionStorage.removeItem('authToken'); 
+                            navigate('/login'); 
+                        }}>Sair</a></li>
                     </ul>
                 </nav>
             </aside>

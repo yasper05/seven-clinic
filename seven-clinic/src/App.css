@@ -502,6 +502,33 @@ body {
     font-size: 1.1rem;
 }
 
+.dashboard-header.colored-header {
+    background: linear-gradient(135deg, var(--bg-dark), #2a2d34);
+    padding: 30px 40px;
+    border-radius: var(--radius-lg);
+    color: var(--text-light);
+    box-shadow: var(--shadow-soft);
+    border-left: 4px solid var(--primary);
+}
+
+.dashboard-header.colored-header h1 {
+    color: var(--primary);
+}
+
+.dashboard-header.colored-header p {
+    color: #ccc;
+}
+
+.dashboard-header.colored-header .btn-primary {
+    background-color: var(--primary);
+    color: var(--text-dark);
+}
+
+.dashboard-header.colored-header .btn-primary:hover {
+    background-color: var(--primary-hover);
+    color: var(--text-light);
+}
+
 /* CARDS */
 .dashboard-cards {
     display: flex;

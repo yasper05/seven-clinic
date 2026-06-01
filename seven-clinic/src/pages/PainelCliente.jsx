@@ -1,6 +1,7 @@
 import React, { useContext, useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AgendamentoContext } from '../context/AgendamentoContext';
+import api from '../api';
 
 /* ─────────────────────────────────────────────────────────────────
    CATÁLOGO FIXO DE PROFISSIONAIS, SERVIÇOS E DURAÇÕES
@@ -101,7 +102,11 @@ const formatDate = (dateStr) =>
    ───────────────────────────────────────────────────────────────── */
 const PainelCliente = () => {
     const navigate = useNavigate();
-    const { agendamentos, adicionarAgendamento, cancelarAgendamento } = useContext(AgendamentoContext);
+    const { agendamentos, adicionarAgendamento, cancelarAgendamento, buscarAgendamentos } = useContext(AgendamentoContext);
+
+    useEffect(() => {
+        buscarAgendamentos();
+    }, []);
 
     const userLogado = JSON.parse(
         localStorage.getItem('userLogado') || sessionStorage.getItem('userLogado') || '{}'
@@ -134,16 +139,17 @@ const PainelCliente = () => {
     /* ─── Busca slots ocupados no backend ao mudar profissional ou data ─── */
     useEffect(() => {
         if (!profissional || !data) return;
-        fetch(
-            `/api/agendamentos/disponibilidade?profissional=${encodeURIComponent(profissional)}&data=${data}`,
-            { headers: { Authorization: `Bearer ${token}` } }
-        )
-            .then(r => r.json())
-            .then(slots => {
-                if (Array.isArray(slots)) setSlotsOcupados(slots);
+        api.get(`/api/agendamentos/disponibilidade?profissional=${encodeURIComponent(profissional)}&data=${data}`)
+            .then(response => {
+                if (Array.isArray(response.data)) {
+                    setSlotsOcupados(response.data);
+                }
             })
-            .catch(() => setSlotsOcupados([]));
-    }, [profissional, data, token]);
+            .catch((err) => {
+                console.error("Erro ao buscar disponibilidade:", err);
+                setSlotsOcupados([]);
+            });
+    }, [profissional, data]);
 
     /* ─── Calcula slots bloqueados: ocupados no banco + itens da sacola da mesma profissional+data ─── */
     const calcularBloqueios = useCallback(() => {
@@ -348,9 +354,11 @@ const PainelCliente = () => {
 
     /* ─── Dados do painel ─── */
     const meusAgendamentos = agendamentos.filter(ag =>
-        ag.cliente_id === userLogado.id ||
-        ag.cliente === userLogado.nome ||
-        ag.cliente === 'Você'
+        !ag.isBloqueio && (
+            ag.cliente_id === userLogado.id ||
+            ag.cliente === userLogado.nome ||
+            ag.cliente === 'Você'
+        )
     );
     const pendentes = meusAgendamentos.filter(ag => ag.status === 'pendente')
         .sort((a, b) => (a.data + a.horario).localeCompare(b.data + b.horario));
@@ -377,14 +385,21 @@ const PainelCliente = () => {
                         <li className="active"><a href="#">Meus Agendamentos</a></li>
                         <li><a href="#" onClick={e => { e.preventDefault(); setIsModalOpen(true); }}>Novo Agendamento</a></li>
                         <li><a href="#" onClick={e => { e.preventDefault(); navigate('/perfil-cliente'); }}>Perfil</a></li>
-                        <li><a href="#" onClick={e => { e.preventDefault(); navigate('/login'); }}>Sair</a></li>
+                        <li><a href="#" onClick={(e) => { 
+                            e.preventDefault(); 
+                            localStorage.removeItem('userLogado'); 
+                            localStorage.removeItem('authToken'); 
+                            sessionStorage.removeItem('userLogado'); 
+                            sessionStorage.removeItem('authToken'); 
+                            navigate('/login'); 
+                        }}>Sair</a></li>
                     </ul>
                 </nav>
             </aside>
 
             {/* MAIN */}
             <main className="dashboard-content">
-                <header className="dashboard-header">
+                <header className="dashboard-header colored-header">
                     <h1>Olá, {userLogado.nome ? userLogado.nome.split(' ')[0] : 'Cliente'}!</h1>
                     <p>Bem-vinda de volta ao seu espaço de beleza e bem-estar.</p>
                 </header>
@@ -588,13 +603,30 @@ const PainelCliente = () => {
                                         )}
 
                                         {/* Manutenção Cílios */}
-                                        {profissional === 'Laura Alencar' && servico.permiteManutencao && (
-                                            <div style={{ marginTop: '12px', padding: '12px', border: '1px solid #e0e0e0', borderRadius: '8px', background: '#fafafa' }}>
-                                                <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }}>
+                                        {profissional === 'Laura Alencar' && servico.permiteManutencao && (() => {
+                                            const temAplicacaoPrevia = meusAgendamentos.some(ag => 
+                                                ag.profissional === 'Laura Alencar' && 
+                                                ag.servico && ag.servico.startsWith('Cílios') && 
+                                                !ag.servico.includes('(Manutenção)') &&
+                                                ag.status !== 'cancelado'
+                                            );
+                                            const temAplicacaoSacola = sacola.some(i => 
+                                                i.profissional === 'Laura Alencar' && 
+                                                i.categoria === 'Cílios' && 
+                                                !i.isManutencao
+                                            );
+                                            const podeFazerManutencao = temAplicacaoPrevia || temAplicacaoSacola;
+                                            
+                                            return (
+                                            <div style={{ marginTop: '12px', padding: '12px', border: '1px solid #e0e0e0', borderRadius: '8px', background: '#fafafa', opacity: podeFazerManutencao ? 1 : 0.6 }}>
+                                                <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: podeFazerManutencao ? 'pointer' : 'not-allowed' }}>
                                                     <input
                                                         type="checkbox"
-                                                        checked={isManutencao}
-                                                        onChange={e => setIsManutencao(e.target.checked)}
+                                                        checked={isManutencao && podeFazerManutencao}
+                                                        onChange={e => {
+                                                            if(podeFazerManutencao) setIsManutencao(e.target.checked);
+                                                        }}
+                                                        disabled={!podeFazerManutencao}
                                                         style={{ width: '18px', height: '18px' }}
                                                     />
                                                     <div>
@@ -602,10 +634,16 @@ const PainelCliente = () => {
                                                         <span style={{ display: 'block', fontSize: '0.78rem', color: '#666' }}>
                                                             30% de desconto se em até 15 dias da última sessão. (Máx. 2 seguidas)
                                                         </span>
+                                                        {!podeFazerManutencao && (
+                                                            <span style={{ display: 'block', fontSize: '0.75rem', color: '#c0392b', marginTop: '4px', fontWeight: 'bold' }}>
+                                                                * Necessário ter uma aplicação prévia agendada para liberar a manutenção.
+                                                            </span>
+                                                        )}
                                                     </div>
                                                 </label>
                                             </div>
-                                        )}
+                                            );
+                                        })()}
 
                                         {/* Resumo do item */}
                                         <div style={{ marginTop: '18px', padding: '14px', border: '1px dashed #654b42', borderRadius: '8px', background: '#faf6f4' }}>
