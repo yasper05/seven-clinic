@@ -28,13 +28,16 @@ export const AgendamentoProvider = ({ children }) => {
 
   const adicionarAgendamento = async (novoAgendamento) => {
     try {
-      await api.post('/api/agendamentos', novoAgendamento);
-      buscarAgendamentos();
+      const response = await api.post('/api/agendamentos', novoAgendamento);
+      await buscarAgendamentos();
+      return { success: true, data: response.data };
     } catch (error) {
       console.error('Erro ao criar agendamento:', error);
-      alert('Erro ao agendar: ' + (error.response?.data?.error || error.message));
+      const msg = error.response?.data?.error || error.message || 'Erro desconhecido';
+      return { error: msg };
     }
   };
+
 
   const cancelarAgendamento = async (id) => {
     try {

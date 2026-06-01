@@ -314,25 +314,140 @@ app.get('/api/profissionais', autenticar, (req, res) => {
 app.get('/api/agendamentos', autenticar, (req, res) => {
     db.all('SELECT * FROM agendamentos', [], (err, rows) => {
         if (err) return res.status(500).json({ error: err.message });
-        const formatados = rows.map(r => ({ ...r, isBloqueio: r.isBloqueio === 1 }));
+        const formatados = rows.map(r => ({ 
+            ...r, 
+            isBloqueio: r.isBloqueio === 1,
+            isManutencao: r.isManutencao === 1,
+            duracao: r.duracao || 30
+        }));
         res.json(formatados);
     });
 });
 
+// Buscar agendamentos de uma profissional em uma data específica (para verificação de slots no frontend)
+app.get('/api/agendamentos/disponibilidade', autenticar, (req, res) => {
+    const { profissional, data } = req.query;
+    if (!profissional || !data) {
+        return res.status(400).json({ error: 'Parâmetros profissional e data são obrigatórios.' });
+    }
+    db.all(
+        `SELECT horario, duracao FROM agendamentos WHERE profissional = ? AND data = ? AND status != 'cancelado'`,
+        [profissional, data],
+        (err, rows) => {
+            if (err) return res.status(500).json({ error: err.message });
+            res.json(rows.map(r => ({ horario: r.horario, duracao: r.duracao || 30 })));
+        }
+    );
+});
+
 // Criar agendamento — Protegido
 app.post('/api/agendamentos', autenticar, (req, res) => {
-    const { cliente, profissional, servico, data, horario, isBloqueio } = req.body;
+    const { cliente, profissional, servico, data, horario, isBloqueio, isManutencao, valor, duracao } = req.body;
+    const cliente_id = req.usuario.id;
+    const tipo_usuario = req.usuario.tipo_usuario;
+    const duracaoMinutos = duracao || 30;
 
-    const checkSql = 'SELECT * FROM agendamentos WHERE profissional = ? AND data = ? AND horario = ? AND status != "cancelado"';
+    // Helper: converte "HH:MM" para minutos totais desde meia-noite
+    const toMinutes = (hhmm) => {
+        const [h, m] = hhmm.split(':').map(Number);
+        return h * 60 + m;
+    };
 
-    db.get(checkSql, [profissional, data, horario], (err, row) => {
-        if (err) return res.status(500).json({ error: 'Erro na validação de horário' });
-        if (row) return res.status(400).json({ error: 'Este horário já está reservado.' });
+    // Helper to get client's real name
+    const obterNomeCliente = new Promise((resolve) => {
+        if (tipo_usuario === 'cliente') {
+            db.get('SELECT nome FROM usuarios WHERE id = ?', [cliente_id], (err, row) => {
+                resolve(row ? row.nome : cliente);
+            });
+        } else {
+            resolve(cliente);
+        }
+    });
 
-        const insertSql = `INSERT INTO agendamentos (cliente, profissional, servico, data, horario, isBloqueio) VALUES (?, ?, ?, ?, ?, ?)`;
-        db.run(insertSql, [cliente, profissional, servico, data, horario, isBloqueio ? 1 : 0], function(err) {
-            if (err) return res.status(500).json({ error: 'Erro ao criar agendamento' });
-            res.status(201).json({ message: 'Agendamento criado com sucesso', id: this.lastID });
+    obterNomeCliente.then((nomeRealCliente) => {
+        // Validação de sobreposição de intervalos de tempo (substitui checagem simples de horário)
+        const checkSql = `SELECT horario, duracao FROM agendamentos 
+                          WHERE profissional = ? AND data = ? AND status != 'cancelado'`;
+
+        db.all(checkSql, [profissional, data], (err, rows) => {
+            if (err) return res.status(500).json({ error: 'Erro na validação de horário.' });
+
+            const startNew = toMinutes(horario);
+            const endNew = startNew + duracaoMinutos;
+
+            // Verifica se há sobreposição com qualquer agendamento existente
+            const sobreposicao = rows.find(r => {
+                const startExist = toMinutes(r.horario);
+                const endExist = startExist + (r.duracao || 30);
+                return startNew < endExist && endNew > startExist;
+            });
+
+            if (sobreposicao) {
+                return res.status(400).json({ 
+                    error: `Este horário conflita com um agendamento existente com ${profissional}. Por favor, escolha outro horário.` 
+                });
+            }
+
+            let finalValor = valor || 0.0;
+            let finalIsManutencao = isManutencao ? 1 : 0;
+
+            // REGRAS DE NEGÓCIO: Cílios (Laura Alencar)
+            if (profissional === 'Laura Alencar' && !isBloqueio) {
+                const historySql = `
+                    SELECT * FROM agendamentos 
+                    WHERE cliente_id = ? 
+                      AND profissional = 'Laura Alencar' 
+                      AND status != 'cancelado' 
+                      AND isBloqueio = 0
+                    ORDER BY data DESC, horario DESC
+                `;
+
+                db.all(historySql, [cliente_id], (err, historyRows) => {
+                    if (err) return res.status(500).json({ error: 'Erro ao buscar histórico de agendamentos.' });
+
+                    if (finalIsManutencao === 1) {
+                        if (servico.toLowerCase().includes('anime')) {
+                            return res.status(400).json({ error: 'Não é permitida manutenção para cílios do tipo Anime.' });
+                        }
+                        if (!historyRows || historyRows.length === 0) {
+                            return res.status(400).json({ error: 'Você precisa ter feito uma aplicação completa antes de agendar uma manutenção.' });
+                        }
+                        if (historyRows.length >= 2) {
+                            const ult1 = historyRows[0];
+                            const ult2 = historyRows[1];
+                            if (ult1.isManutencao === 1 && ult2.isManutencao === 1) {
+                                return res.status(400).json({ error: 'Não é permitido realizar mais de 2 manutenções seguidas. Por favor, agende uma nova aplicação completa.' });
+                            }
+                        }
+                        const ultimoAtendimento = historyRows[0];
+                        const dataNovo = new Date(data);
+                        const dataUltimo = new Date(ultimoAtendimento.data);
+                        const diffDays = Math.ceil(Math.abs(dataNovo - dataUltimo) / (1000 * 60 * 60 * 24));
+                        if (diffDays <= 15) {
+                            finalValor = finalValor * 0.70;
+                        }
+                    }
+                    
+                    executarInsercao(nomeRealCliente, finalValor, finalIsManutencao);
+                });
+            } else {
+                executarInsercao(nomeRealCliente, finalValor, finalIsManutencao);
+            }
+
+            function executarInsercao(nomeClienteReal, finalVal, finalManut) {
+                const insertSql = `
+                    INSERT INTO agendamentos (cliente, cliente_id, profissional, servico, data, horario, duracao, isBloqueio, isManutencao, valor) 
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                `;
+                db.run(
+                    insertSql, 
+                    [nomeClienteReal, cliente_id, profissional, servico, data, horario, duracaoMinutos, isBloqueio ? 1 : 0, finalManut, finalVal], 
+                    function(err) {
+                        if (err) return res.status(500).json({ error: 'Erro ao criar agendamento no banco de dados.' });
+                        res.status(201).json({ message: 'Agendamento criado com sucesso!', id: this.lastID });
+                    }
+                );
+            }
         });
     });
 });

@@ -837,12 +837,26 @@ body {
 }
 
 .status-badge {
-    background-color: #e3f2fd;
-    color: #1565c0;
     padding: 5px 10px;
     border-radius: 4px;
     font-size: 0.8rem;
     font-weight: 600;
+    display: inline-block;
+}
+
+.status-pendente {
+    background-color: #fff3e0;
+    color: #e65100;
+}
+
+.status-concluido {
+    background-color: #e8f5e9;
+    color: #2e7d32;
+}
+
+.status-cancelado {
+    background-color: #fce4ec;
+    color: #c62828;
 }
 
 /* MODAL / FORM IN DASHBOARDS */
@@ -914,8 +928,13 @@ body {
     justify-content: flex-end;
     gap: 15px;
     margin-top: 30px;
+}
+
 .modal-content.modal-large {
-    max-width: 800px;
+    max-width: 960px;
+    width: 95vw;
+    max-height: 90vh;
+    overflow-y: auto;
 }
 
 .modal-grid {
@@ -928,7 +947,6 @@ body {
     .modal-grid {
         flex-direction: column;
     }
-}
 }
 
 .modal-form-col {

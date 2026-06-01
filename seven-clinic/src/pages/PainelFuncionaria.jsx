@@ -23,7 +23,8 @@ const PainelFuncionaria = () => {
     const [novaData, setNovaData] = useState(new Date().toISOString().split('T')[0]);
     const [novoHorario, setNovoHorario] = useState('09:00');
 
-    const nomeProfissional = 'Você (Profissional)';
+    const userLogado = JSON.parse(localStorage.getItem('userLogado') || sessionStorage.getItem('userLogado') || '{}');
+    const nomeProfissional = userLogado.nome || 'Você (Profissional)';
 
     // Array de horários da clínica
     const horariosTrabalho = [
@@ -108,12 +109,17 @@ const PainelFuncionaria = () => {
                     <div className="daily-cards-list">
                         {agendamentosHoje.map((evento, idx) => {
                             const isBlock = evento.isBloqueio;
+                            const durMin = evento.duracao || 60;
+                            const [hh, mm] = evento.horario.split(':').map(Number);
+                            const endMin = hh * 60 + mm + durMin;
+                            const endStr = `${String(Math.floor(endMin / 60)).padStart(2,'0')}:${String(endMin % 60).padStart(2,'0')}`;
                             return (
                                 <div key={idx} className={`daily-event-card-standalone ${isBlock ? 'mock-gray' : ''}`} onClick={() => handleAgendamentoClick(evento)}>
-                                    <div className="card-time">{evento.horario}</div>
+                                    <div className="card-time">{evento.horario}<br/><span style={{fontSize:'0.7rem',opacity:0.7}}>{endStr}</span></div>
                                     <div className="card-content-black" style={isBlock ? {backgroundColor: '#f1f3f4', color: '#3c4043', border: '1px solid #dadce0'} : {}}>
                                         <div className="card-title">{isBlock ? evento.servico : evento.cliente.split(' ')[0]}</div>
                                         {!isBlock && <div className="card-subtitle">{evento.servico}</div>}
+                                        <div style={{fontSize:'0.72rem',marginTop:'4px',opacity:0.7}}>⏱ {durMin} min</div>
                                     </div>
                                 </div>
                             );
@@ -136,16 +142,15 @@ const PainelFuncionaria = () => {
         const dayNames = ['DOM.', 'SEG.', 'TER.', 'QUA.', 'QUI.', 'SEX.', 'SÁB.'];
         const gridHours = ["06:00", "07:00", "08:00", "09:00", "10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00", "17:00", "18:00"];
 
-        // Função auxiliar para calcular o TOP e HEIGHT (simulado) com base na string de horário (ex: "09:00")
-        // No grid CSS real que vamos fazer, cada hora pode ter 60px de altura pra facilitar (começando do "06:00").
-        // Ex: 08:00 -> offset de 2 horas desde as 06:00 -> top: 2 * 60 = 120px.
-        const getEventStyle = (startTimeStr, durationHours = 1) => {
-            if(!startTimeStr) return {top: '0px', height: '60px'};
+        // getEventStyle: usa duração real em MINUTOS (campo duracao do banco)
+        // Cada hora ocupa 60px no grid. Base: 06:00.
+        const getEventStyle = (startTimeStr, duracaoMinutos = 60) => {
+            if (!startTimeStr) return { top: '0px', height: '60px' };
             const [h, m] = startTimeStr.split(':').map(Number);
             const hourOffset = h - 6; // base 06:00
             const minuteOffset = m / 60;
-            const topPx = (hourOffset + minuteOffset) * 60; // 60px per hour
-            const heightPx = durationHours * 60;
+            const topPx = (hourOffset + minuteOffset) * 60; // 60px por hora
+            const heightPx = Math.max(30, (duracaoMinutos / 60) * 60); // mínimo 30px
             return {
                 top: `${topPx}px`,
                 height: `${heightPx}px`,
@@ -209,15 +214,22 @@ const PainelFuncionaria = () => {
                                         {eventsToday.map((event, idx) => {
                                             const isBlock = event.isBloqueio;
                                             const bgColorClass = isBlock ? 'mock-gray' : classColors[idx % classColors.length];
+                                            const durMin = event.duracao || 60;
+                                            const [hh, mm] = event.horario.split(':').map(Number);
+                                            const endMin = hh * 60 + mm + durMin;
+                                            const endStr = `${String(Math.floor(endMin / 60)).padStart(2,'0')}:${String(endMin % 60).padStart(2,'0')}`;
                                             return (
                                                 <div 
                                                     key={`ev-${idx}`} 
                                                     className={`google-event-card ${bgColorClass}`} 
-                                                    style={getEventStyle(event.horario, 1.5)} // todos simulando 1h30m de duração
+                                                    style={getEventStyle(event.horario, durMin)}
                                                     onClick={() => handleAgendamentoClick(event)}
                                                 >
                                                     <div className="ev-title">
-                                                        {isBlock ? event.servico : `${event.cliente.split(' ')[0]} : ${event.servico.substring(0, 8)}`}
+                                                        {isBlock ? event.servico : `${event.cliente.split(' ')[0]}`}
+                                                    </div>
+                                                    <div className="ev-time" style={{fontSize:'0.7rem',opacity:0.8}}>
+                                                        {event.horario}–{endStr}
                                                     </div>
                                                 </div>
                                             );
@@ -311,7 +323,7 @@ const PainelFuncionaria = () => {
             <main className="dashboard-content">
                 <header className="dashboard-header" style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
                     <div>
-                        <h1>Olá, Profissional!</h1>
+                        <h1>Olá, {userLogado.nome ? userLogado.nome.split(' ')[0] : 'Profissional'}!</h1>
                         <p>Aqui está a sua agenda de trabalho.</p>
                     </div>
                     <button className="btn-primary" style={{width: 'auto', marginTop: 0, padding: '12px 24px'}} onClick={() => {

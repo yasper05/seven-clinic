@@ -53,17 +53,22 @@ function inicializarBanco() {
             )
         `);
 
-        // TABELA: agendamentos (Simplificada para bater exatamente com o Frontend do TCC)
+        // TABELA: agendamentos (Simplificada para TCC, adicionando cliente_id, isManutencao, valor e duracao)
         db.run(`
             CREATE TABLE IF NOT EXISTS agendamentos (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 cliente TEXT NOT NULL,
+                cliente_id INTEGER,
                 profissional TEXT NOT NULL,
                 servico TEXT NOT NULL,
                 data TEXT NOT NULL,
                 horario TEXT NOT NULL,
+                duracao INTEGER DEFAULT 30,
                 status TEXT DEFAULT 'pendente', -- 'pendente', 'concluido', 'cancelado'
-                isBloqueio BOOLEAN DEFAULT 0
+                isBloqueio BOOLEAN DEFAULT 0,
+                isManutencao BOOLEAN DEFAULT 0,
+                valor REAL,
+                FOREIGN KEY (cliente_id) REFERENCES usuarios(id)
             )
         `);
 
@@ -148,6 +153,12 @@ function inicializarBanco() {
 
         console.log('[SUCESSO] Tabelas criadas/verificadas com sucesso no banco de dados.');
 
+        // Garante que novas colunas existam na tabela de agendamentos (migração segura para bancos existentes)
+        db.run("ALTER TABLE agendamentos ADD COLUMN cliente_id INTEGER", () => {});
+        db.run("ALTER TABLE agendamentos ADD COLUMN isManutencao BOOLEAN DEFAULT 0", () => {});
+        db.run("ALTER TABLE agendamentos ADD COLUMN valor REAL", () => {});
+        db.run("ALTER TABLE agendamentos ADD COLUMN duracao INTEGER DEFAULT 30", () => {});
+
         // Criação de dados padrões (Seeding) para facilitar testes iniciais
         popularBancoInicial();
     });
@@ -155,26 +166,85 @@ function inicializarBanco() {
 
 // Insere dados básicos caso as tabelas estejam vazias
 function popularBancoInicial() {
-    db.get("SELECT COUNT(*) as count FROM procedimentos", (err, row) => {
+    db.get("SELECT COUNT(*) as count FROM procedimentos WHERE nome_servico = 'Classico'", (err, row) => {
         if (!err && row.count === 0) {
-            console.log("Inserindo procedimentos iniciais...");
-            const stmt = db.prepare("INSERT INTO procedimentos (nome_servico, duracao_minutos, preco) VALUES (?, ?, ?)");
-            stmt.run("Cílios Volume Brasileiro", 90, 150.0);
-            stmt.run("Design de Sobrancelha", 30, 45.0);
-            stmt.run("Limpeza de Pele", 60, 120.0);
-            stmt.run("Unhas (Mão e Pé)", 90, 80.0);
-            stmt.finalize();
+            console.log("Reiniciando e inserindo grade fixa de procedimentos...");
+            db.run("DELETE FROM procedimentos", () => {
+                const stmt = db.prepare("INSERT INTO procedimentos (nome_servico, duracao_minutos, preco) VALUES (?, ?, ?)");
+                
+                // Laura Alencar (Cílios)
+                stmt.run("Classico", 90, 220.0);
+                stmt.run("Volume light", 90, 210.0);
+                stmt.run("Soft light", 90, 175.0);
+                stmt.run("wet", 90, 240.0);
+                stmt.run("anime", 90, 250.0);
+                stmt.run("soft fox", 90, 175.0);
+                stmt.run("delineado", 90, 240.0);
+                stmt.run("wispy", 90, 250.0);
+                stmt.run("fox eyes", 90, 230.0);
+                stmt.run("cat eyes", 90, 200.0);
+
+                // Mayara Vespasiano (Sobrancelha / Lábios / Adicionais)
+                stmt.run("Design personalizado", 30, 45.0);
+                stmt.run("Design + coloração", 45, 79.0);
+                stmt.run("Design + henna", 45, 69.0);
+                stmt.run("Light brows", 60, 120.0);
+                stmt.run("Brow lamination", 60, 195.0);
+                stmt.run("Micropigmentação", 120, 690.0);
+                stmt.run("Lip blush", 120, 230.0);
+                stmt.run("Protocolo de hidratação", 45, 120.0);
+                stmt.run("Microlabial", 120, 690.0);
+                stmt.run("Buço", 15, 20.0);
+                stmt.run("Epilação facial", 45, 70.0);
+
+                // Ana Paula (Unhas)
+                stmt.run("Alongamento em Molde F1 (Natural)", 120, 190.0);
+                stmt.run("Alongamento em Molde F1 (Decorada)", 120, 220.0);
+                stmt.run("Alongamento em Soft Gel (Natural)", 90, 130.0);
+                stmt.run("Alongamento em Soft Gel (Decorada)", 90, 160.0);
+                stmt.run("Banho de gel em molde F1 (Natural)", 90, 90.0);
+                stmt.run("Banho de gel em molde F1 (Decorada)", 90, 120.0);
+                stmt.run("Blindagem estrutural (Natural)", 60, 90.0);
+                stmt.run("Blindagem estrutural (Decorada)", 60, 110.0);
+                stmt.run("Banho de gel fiber (Natural)", 90, 150.0);
+                stmt.run("Banho de gel fiber (Decorada)", 90, 180.0);
+                stmt.run("Manutenção em Molde F1 (Natural)", 90, 120.0);
+                stmt.run("Manutenção em Molde F1 (Decorada)", 90, 150.0);
+                stmt.run("Manutenção em Soft Gel (Natural)", 90, 100.0);
+                stmt.run("Manutenção em Soft Gel (Decorada)", 90, 130.0);
+                stmt.run("Manutenção Blindagem fiber (Natural)", 90, 100.0);
+                stmt.run("Manutenção Blindagem fiber (Decorada)", 90, 130.0);
+                stmt.run("Esmaltação em gel (blindagem) *inclui cuticulagem russa* (Esmaltada)", 60, 80.0);
+                stmt.run("Esmaltação em gel (blindagem) *inclui cuticulagem russa* (Decorada)", 60, 100.0);
+                stmt.run("Reconstrução e alinhamento de unhas quebrada", 30, 20.0);
+                stmt.run("Remoção de alongamento", 45, 70.0);
+                stmt.run("Reposição unha quebrada", 20, 10.0);
+                stmt.run("Remoção de esmaltação", 30, 40.0);
+                stmt.run("Remoção de blindagem", 45, 60.0);
+                stmt.run("Pedicure *inclui cuticulagem russa* (Esmaltada)", 60, 80.0);
+                stmt.run("Pedicure *inclui cuticulagem russa* (Decorada)", 60, 100.0);
+                stmt.run("Adicional pedraria", 15, 10.0);
+                stmt.run("Cuticulagem com tesoura", 30, 20.0);
+                
+                stmt.finalize();
+            });
         }
     });
 
-    db.get("SELECT COUNT(*) as count FROM profissionais", (err, row) => {
-        if (!err && row.count === 0) {
-            console.log("Inserindo profissional padrão na tabela de profissionais...");
-            const hashSenha = bcrypt.hashSync('senha123', 10);
-            db.run(`
-                INSERT INTO profissionais (nome, email, senha_hash, telefone, role)
-                VALUES ('Profissional Maria', 'maria@sevenclinic.com', '${hashSenha}', '(41) 99999-9999', 'profissional')
-            `);
+    db.get("SELECT COUNT(*) as count FROM profissionais WHERE email IN ('laura@sevenclinic.com', 'mayara@sevenclinic.com', 'ana@sevenclinic.com')", (err, row) => {
+        if (!err && row.count < 3) {
+            console.log("Reiniciando e inserindo profissionais fixos...");
+            db.run("DELETE FROM profissionais", () => {
+                const hashSenha = bcrypt.hashSync('senha123', 10);
+                const stmt = db.prepare(`
+                    INSERT INTO profissionais (nome, email, senha_hash, telefone, role)
+                    VALUES (?, ?, ?, ?, 'profissional')
+                `);
+                stmt.run('Laura Alencar', 'laura@sevenclinic.com', hashSenha, '(41) 99999-1111');
+                stmt.run('Mayara Vespasiano', 'mayara@sevenclinic.com', hashSenha, '(41) 99999-2222');
+                stmt.run('Ana Paula', 'ana@sevenclinic.com', hashSenha, '(41) 99999-3333');
+                stmt.finalize();
+            });
         }
     });
 }
