@@ -4,7 +4,7 @@ import { AgendamentoContext } from '../context/AgendamentoContext';
 
 const PainelFuncionaria = () => {
     const navigate = useNavigate();
-    const { agendamentos, concluirAgendamento, adicionarAgendamento, buscarAgendamentos } = useContext(AgendamentoContext);
+    const { agendamentos, concluirAgendamento, adicionarAgendamento, buscarAgendamentos, cancelarAgendamento, naoCompareceuAgendamento } = useContext(AgendamentoContext);
 
     useEffect(() => {
         buscarAgendamentos();
@@ -20,6 +20,9 @@ const PainelFuncionaria = () => {
 
     // Modal state for adding new appointment/block
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+    const [filtroDia, setFiltroDia] = useState('');
+    const [filtroMes, setFiltroMes] = useState('');
+    const [menuAberto, setMenuAberto] = useState(false);
     const [isBloqueio, setIsBloqueio] = useState(false);
     const [novoCliente, setNovoCliente] = useState('');
     const [novoServico, setNovoServico] = useState('');
@@ -67,6 +70,20 @@ const PainelFuncionaria = () => {
     const handleConcluir = (id) => {
         if(window.confirm('Marcar este atendimento como concluído?')) {
             concluirAgendamento(id);
+            setIsModalOpen(false);
+        }
+    };
+
+    const handleCancelarProf = (id) => {
+        if(window.confirm('Tem certeza que deseja CANCELAR este agendamento? Uma mensagem de WhatsApp será enviada à cliente.')) {
+            cancelarAgendamento(id);
+            setIsModalOpen(false);
+        }
+    };
+
+    const handleNaoCompareceu = (id) => {
+        if(window.confirm('Registrar que a cliente não compareceu? Uma taxa de cancelamento de R$ 50 será adicionada à conta dela.')) {
+            naoCompareceuAgendamento(id);
             setIsModalOpen(false);
         }
     };
@@ -332,10 +349,15 @@ const PainelFuncionaria = () => {
             <aside className="sidebar">
                 <div className="sidebar-logo">
                     <h2>SEVEN <span className="logo-sub">CLINIC</span></h2>
+                    <button className="menu-hamburger dash-ham" onClick={() => setMenuAberto(!menuAberto)} aria-label="Menu">
+                        <span className={menuAberto ? 'ham-line open' : 'ham-line'}></span>
+                        <span className={menuAberto ? 'ham-line open' : 'ham-line'}></span>
+                        <span className={menuAberto ? 'ham-line open' : 'ham-line'}></span>
+                    </button>
                 </div>
-                <nav className="sidebar-nav">
+                <nav className={`sidebar-nav ${menuAberto ? 'menu-open' : ''}`}>
                     <ul>
-                        <li className="active"><a href="#">Agenda</a></li>
+                        <li className="active"><a href="#" onClick={() => setMenuAberto(false)}>Agenda</a></li>
                         <li><a href="#" onClick={(e) => { e.preventDefault(); navigate('/meus-clientes'); }}>Meus Clientes</a></li>
                         <li><a href="#" onClick={(e) => { e.preventDefault(); navigate('/perfil-funcionaria'); }}>Perfil Profissional</a></li>
                         <li><a href="#" onClick={(e) => { 
@@ -419,9 +441,15 @@ const PainelFuncionaria = () => {
                                 </div>
                             </div>
 
-                            <div className="modal-actions">
+                            <div className="modal-actions" style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
                                 <button type="button" className="btn-secondary" onClick={() => setIsModalOpen(false)}>Fechar</button>
-                                <button type="button" className="btn-success" onClick={() => handleConcluir(selectedAgendamento.id)}>Concluir Atendimento</button>
+                                {selectedAgendamento.status === 'pendente' && (
+                                    <>
+                                        <button type="button" className="btn-secondary" style={{ borderColor: '#e74c3c', color: '#e74c3c' }} onClick={() => handleCancelarProf(selectedAgendamento.id)}>Cancelar Agendamento</button>
+                                        <button type="button" className="btn-secondary" style={{ borderColor: '#f39c12', color: '#f39c12' }} onClick={() => handleNaoCompareceu(selectedAgendamento.id)}>Não Compareceu</button>
+                                        <button type="button" className="btn-success" onClick={() => handleConcluir(selectedAgendamento.id)}>Concluir Atendimento</button>
+                                    </>
+                                )}
                             </div>
                         </div>
                     </div>
@@ -472,7 +500,20 @@ const PainelFuncionaria = () => {
                                 <div style={{display: 'flex', gap: '15px', flexWrap: 'wrap'}}>
                                     <div className="input-group" style={{flex: 1, minWidth: '120px'}}>
                                         <label>Data</label>
-                                        <input type="date" value={novaData} onChange={(e) => setNovaData(e.target.value)} required />
+                                        <input 
+                                            type="date" 
+                                            value={novaData} 
+                                            min={new Date().toISOString().split('T')[0]}
+                                            onChange={(e) => {
+                                                const today = new Date().toISOString().split('T')[0];
+                                                if (e.target.value && e.target.value < today) {
+                                                    setNovaData(today);
+                                                } else {
+                                                    setNovaData(e.target.value);
+                                                }
+                                            }} 
+                                            required 
+                                        />
                                     </div>
                                     <div className="input-group" style={{flex: 1, minWidth: '120px'}}>
                                         <label>{isBloqueio ? 'Horário de Saída' : 'Horário'}</label>

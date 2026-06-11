@@ -113,9 +113,10 @@ const PainelCliente = () => {
     );
     const token = localStorage.getItem('authToken') || sessionStorage.getItem('authToken') || '';
 
-    /* ── Modais ── */
+    /* ── Modais e Menu ── */
     const [isModalOpen, setIsModalOpen]   = useState(false);
     const [modalStep, setModalStep]       = useState('form'); // 'form' | 'sacola'
+    const [menuAberto, setMenuAberto]     = useState(false);
 
     /* ── Seleção de serviço atual ── */
     const [profissional,       setProfissional]       = useState('Laura Alencar');
@@ -135,6 +136,18 @@ const PainelCliente = () => {
     /* ── Mensagens de erro/aviso ── */
     const [erroModal, setErroModal] = useState('');
     const [enviando,  setEnviando]  = useState(false);
+    const [taxaPendente, setTaxaPendente] = useState(0);
+
+    /* ─── Busca taxa pendente ─── */
+    useEffect(() => {
+        if (userLogado.id) {
+            api.get(`/api/usuarios/${userLogado.id}/taxa`)
+                .then(res => {
+                    if (res.data.taxa_pendente) setTaxaPendente(res.data.taxa_pendente);
+                })
+                .catch(err => console.error("Erro ao buscar taxa pendente:", err));
+        }
+    }, [userLogado.id]);
 
     /* ─── Busca slots ocupados no backend ao mudar profissional ou data ─── */
     useEffect(() => {
@@ -338,6 +351,7 @@ const PainelCliente = () => {
         if (erros.length > 0) {
             setErroModal('Alguns agendamentos falharam:\n' + erros.join('\n'));
         } else {
+            setTaxaPendente(0); // A taxa foi cobrada no backend
             setSacola([]);
             setIsModalOpen(false);
             setModalStep('form');
@@ -354,11 +368,7 @@ const PainelCliente = () => {
 
     /* ─── Dados do painel ─── */
     const meusAgendamentos = agendamentos.filter(ag =>
-        !ag.isBloqueio && (
-            ag.cliente_id === userLogado.id ||
-            ag.cliente === userLogado.nome ||
-            ag.cliente === 'Você'
-        )
+        !ag.isBloqueio && ag.cliente_id === userLogado.id
     );
     const pendentes = meusAgendamentos.filter(ag => ag.status === 'pendente')
         .sort((a, b) => (a.data + a.horario).localeCompare(b.data + b.horario));
@@ -379,12 +389,17 @@ const PainelCliente = () => {
             <aside className="sidebar">
                 <div className="sidebar-logo">
                     <h2>SEVEN <span className="logo-sub">CLINIC</span></h2>
+                    <button className="menu-hamburger dash-ham" onClick={() => setMenuAberto(!menuAberto)} aria-label="Menu">
+                        <span className={menuAberto ? 'ham-line open' : 'ham-line'}></span>
+                        <span className={menuAberto ? 'ham-line open' : 'ham-line'}></span>
+                        <span className={menuAberto ? 'ham-line open' : 'ham-line'}></span>
+                    </button>
                 </div>
-                <nav className="sidebar-nav">
+                <nav className={`sidebar-nav ${menuAberto ? 'menu-open' : ''}`}>
                     <ul>
-                        <li className="active"><a href="#">Meus Agendamentos</a></li>
-                        <li><a href="#" onClick={e => { e.preventDefault(); setIsModalOpen(true); }}>Novo Agendamento</a></li>
-                        <li><a href="#" onClick={e => { e.preventDefault(); navigate('/perfil-cliente'); }}>Perfil</a></li>
+                        <li className="active"><a href="#" onClick={() => setMenuAberto(false)}>Meus Agendamentos</a></li>
+                        <li><a href="#" onClick={e => { e.preventDefault(); setIsModalOpen(true); setMenuAberto(false); }}>Novo Agendamento</a></li>
+                        <li><a href="#" onClick={e => { e.preventDefault(); navigate('/perfil-cliente'); setMenuAberto(false); }}>Perfil</a></li>
                         <li><a href="#" onClick={(e) => { 
                             e.preventDefault(); 
                             localStorage.removeItem('userLogado'); 
@@ -660,8 +675,18 @@ const PainelCliente = () => {
                                                     📅 {formatDate(data)} às {horario} → {minutesToHHMM(toMinutes(horario) + (servico.duracao || 30))}
                                                 </p>
                                             )}
+                                            {taxaPendente > 0 && (
+                                                <div style={{ marginTop: '10px', padding: '8px', background: '#ffebee', borderRadius: '4px', borderLeft: '4px solid #f44336' }}>
+                                                    <p style={{ margin: 0, fontSize: '0.75rem', color: '#c0392b', fontWeight: 'bold' }}>
+                                                        ⚠️ Taxa Pendente de Cancelamento Tardio / Não Comparecimento: R$ {taxaPendente.toFixed(2)}
+                                                    </p>
+                                                    <p style={{ margin: '4px 0 0', fontSize: '0.7rem', color: '#666' }}>
+                                                        Este valor será somado ao valor final deste serviço, referente a um cancelamento passado.
+                                                    </p>
+                                                </div>
+                                            )}
                                             <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid #ebdcd5', paddingTop: '8px', marginTop: '10px' }}>
-                                                <span style={{ fontWeight: '600', fontSize: '0.9rem' }}>Valor:</span>
+                                                <span style={{ fontWeight: '600', fontSize: '0.9rem' }}>Valor do Serviço:</span>
                                                 <span style={{ fontWeight: '800', fontSize: '1.2rem', color: '#654b42' }}>R$ {obterPreco().toFixed(2)}</span>
                                             </div>
                                         </div>
@@ -701,7 +726,15 @@ const PainelCliente = () => {
                                                 type="date"
                                                 value={data}
                                                 min={new Date().toISOString().split('T')[0]}
-                                                onChange={e => { setData(e.target.value); setHorario(''); }}
+                                                onChange={e => {
+                                                    const today = new Date().toISOString().split('T')[0];
+                                                    if (e.target.value && e.target.value < today) {
+                                                        setData(today);
+                                                    } else {
+                                                        setData(e.target.value);
+                                                    }
+                                                    setHorario('');
+                                                }}
                                             />
                                         </div>
 

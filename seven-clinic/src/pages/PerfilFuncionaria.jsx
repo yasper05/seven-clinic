@@ -7,19 +7,47 @@ const PerfilFuncionaria = () => {
     // Referência para o input de arquivo oculto
     const fileInputRef = useRef(null);
 
-    // Estados locais para simular os campos do perfil profissional
-    const [nome, setNome] = useState('Você (Profissional)');
-    const [fotoPerfil, setFotoPerfil] = useState(null); // Estado para a imagem de perfil
-    const [email, setEmail] = useState('profissional@sevenclinic.com');
-    const [telefone, setTelefone] = useState('(41) 98888-8888');
+    const userLogado = JSON.parse(localStorage.getItem('userLogado') || sessionStorage.getItem('userLogado') || '{}');
+
+    // Estados locais para os campos do perfil profissional
+    const [nome, setNome] = useState(userLogado.nome || 'Você (Profissional)');
+    const [fotoPerfil, setFotoPerfil] = useState(userLogado.foto_url || null);
+    const [email, setEmail] = useState(userLogado.email || '');
+    const [telefone, setTelefone] = useState(userLogado.telefone || '');
     const [senha, setSenha] = useState('');
+    const [mostrarSenha, setMostrarSenha] = useState(false);
     const [bio, setBio] = useState('Especialista em Cílios e Design de Sobrancelha com mais de 5 anos de experiência em visagismo facial.');
     const [especialidades, setEspecialidades] = useState('Cílios Volume Brasileiro, Design de Sobrancelha');
+    const [menuAberto, setMenuAberto] = useState(false);
 
-    const handleSalvar = (e) => {
+    const handleSalvar = async (e) => {
         e.preventDefault();
-        alert('Perfil profissional atualizado com sucesso!');
-        setSenha(''); // Limpa a senha por segurança após salvar
+        try {
+            const body = {
+                nome,
+                email,
+                telefone,
+                senha,
+                foto_url: fotoPerfil
+            };
+
+            // Using the same endpoint as clients for now, since it handles both based on user type
+            const { default: api } = await import('../api');
+            await api.put(`/api/usuarios/${userLogado.id}`, body);
+
+            // Atualiza sessão
+            const newUserLogado = { ...userLogado, nome, email, telefone, foto_url: fotoPerfil };
+            if (localStorage.getItem('userLogado')) {
+                localStorage.setItem('userLogado', JSON.stringify(newUserLogado));
+            } else {
+                sessionStorage.setItem('userLogado', JSON.stringify(newUserLogado));
+            }
+
+            alert('Perfil profissional atualizado com sucesso!');
+            setSenha('');
+        } catch (error) {
+            alert(error.response?.data?.error || 'Erro ao atualizar o perfil. Tente novamente.');
+        }
     };
 
     const handleFotoClick = () => {
@@ -42,12 +70,17 @@ const PerfilFuncionaria = () => {
             <aside className="sidebar">
                 <div className="sidebar-logo">
                     <h2>SEVEN <span className="logo-sub">CLINIC</span></h2>
+                    <button className="menu-hamburger dash-ham" onClick={() => setMenuAberto(!menuAberto)} aria-label="Menu">
+                        <span className={menuAberto ? 'ham-line open' : 'ham-line'}></span>
+                        <span className={menuAberto ? 'ham-line open' : 'ham-line'}></span>
+                        <span className={menuAberto ? 'ham-line open' : 'ham-line'}></span>
+                    </button>
                 </div>
-                <nav className="sidebar-nav">
+                <nav className={`sidebar-nav ${menuAberto ? 'menu-open' : ''}`}>
                     <ul>
-                        <li><a href="#" onClick={(e) => { e.preventDefault(); navigate('/painel-funcionaria'); }}>Agenda do Dia</a></li>
-                        <li><a href="#" onClick={(e) => { e.preventDefault(); navigate('/meus-clientes'); }}>Meus Clientes</a></li>
-                        <li className="active"><a href="#">Perfil Profissional</a></li>
+                        <li><a href="#" onClick={(e) => { e.preventDefault(); setMenuAberto(false); navigate('/painel-funcionaria'); }}>Agenda do Dia</a></li>
+                        <li><a href="#" onClick={(e) => { e.preventDefault(); setMenuAberto(false); navigate('/meus-clientes'); }}>Meus Clientes</a></li>
+                        <li className="active"><a href="#" onClick={() => setMenuAberto(false)}>Perfil Profissional</a></li>
                         <li><a href="#" onClick={(e) => { 
                             e.preventDefault(); 
                             localStorage.removeItem('userLogado'); 
@@ -94,8 +127,13 @@ const PerfilFuncionaria = () => {
                                     <h3 style={{marginBottom: '20px', fontWeight: '500'}}>Dados Pessoais</h3>
                                     
                                     <div className="input-group">
-                                        <label>Nome / Como deseja ser chamada</label>
-                                        <input type="text" value={nome} onChange={(e) => setNome(e.target.value)} required />
+                                        <label>Nome / Como deseja ser chamada (Não pode ser alterado)</label>
+                                        <input 
+                                            type="text" 
+                                            value={nome} 
+                                            readOnly 
+                                            style={{ backgroundColor: '#f0f0f0', color: '#666', cursor: 'not-allowed' }}
+                                        />
                                     </div>
                                     
                                     <div style={{display: 'flex', gap: '15px'}}>
@@ -128,9 +166,33 @@ const PerfilFuncionaria = () => {
 
                                     <h3 style={{marginTop: '20px', marginBottom: '20px', fontWeight: '500'}}>Segurança</h3>
                                     
-                                    <div className="input-group">
+                                    <div className="input-group" style={{ position: 'relative' }}>
                                         <label>Nova Senha</label>
-                                        <input type="password" value={senha} onChange={(e) => setSenha(e.target.value)} placeholder="••••••••" />
+                                        <input 
+                                            type={mostrarSenha ? "text" : "password"} 
+                                            value={senha} 
+                                            onChange={(e) => setSenha(e.target.value)} 
+                                            placeholder="••••••••" 
+                                            style={{ paddingRight: '80px' }}
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={() => setMostrarSenha(!mostrarSenha)}
+                                            style={{
+                                                position: 'absolute',
+                                                right: '15px',
+                                                bottom: '14px',
+                                                background: 'none',
+                                                border: 'none',
+                                                color: '#888',
+                                                cursor: 'pointer',
+                                                fontSize: '0.8rem',
+                                                fontWeight: 'bold',
+                                                textTransform: 'uppercase'
+                                            }}
+                                        >
+                                            {mostrarSenha ? 'Ocultar' : 'Mostrar'}
+                                        </button>
                                     </div>
 
                                     <button type="submit" className="btn-primary" style={{marginTop: '20px', width: 'auto', padding: '12px 30px'}}>

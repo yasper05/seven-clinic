@@ -57,13 +57,23 @@ export const AgendamentoProvider = ({ children }) => {
     }
   };
 
+  const naoCompareceuAgendamento = async (id) => {
+    try {
+      await api.put(`/api/agendamentos/${id}/status`, { status: 'nao_compareceu' });
+      buscarAgendamentos();
+    } catch (error) {
+      console.error('Erro ao registrar não comparecimento:', error);
+    }
+  };
+
   return (
     <AgendamentoContext.Provider value={{ 
         agendamentos,
         buscarAgendamentos,
         adicionarAgendamento, 
         cancelarAgendamento, 
-        concluirAgendamento 
+        concluirAgendamento,
+        naoCompareceuAgendamento 
     }}>
       {children}
     </AgendamentoContext.Provider>

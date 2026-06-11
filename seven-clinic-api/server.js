@@ -8,6 +8,7 @@ const crypto = require('crypto');
 const path = require('path');
 const db = require('./db');
 require('./whatsapp');
+const { enviarMensagemWhatsApp } = require('./whatsapp');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -22,7 +23,8 @@ app.use(cors({
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'ngrok-skip-browser-warning'],
 }));
-app.use(express.json());
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
 app.use((req, res, next) => { res.setHeader('ngrok-skip-browser-warning', 'true'); next(); });
 
 // ============================================
@@ -198,6 +200,10 @@ app.post('/api/login', (req, res) => {
 app.post('/api/recuperar-senha', (req, res) => {
     const { email } = req.body;
 
+    // Detecta automaticamente se está vindo do ngrok ou do localhost
+    const origin = req.headers['origin'] || req.headers['referer'] || FRONTEND_URL;
+    const frontendUrl = origin.replace(/\/$/, '').split('/').slice(0, 3).join('/');
+
     db.get(
         'SELECT id, nome, "cliente" as tipo FROM usuarios WHERE email = ? UNION SELECT id, nome, "profissional" as tipo FROM profissionais WHERE email = ?',
         [email, email],
@@ -213,7 +219,9 @@ app.post('/api/recuperar-senha', (req, res) => {
             db.run('INSERT INTO recuperacao_senha (email, token, expiracao) VALUES (?, ?, ?)', [email, token, expiracao], function(err) {
                 if (err) return res.status(500).json({ error: 'Erro ao gerar token de recuperação' });
 
-                const resetLink = `${FRONTEND_URL}/redefinir-senha?token=${token}`;
+                const resetLink = `${frontendUrl}/redefinir-senha?token=${token}`;
+                console.log(`[RECUPERAR SENHA] Link gerado para ${email}: ${resetLink}`);
+
                 const mailOptions = {
                     from: `"Seven Clinic Suporte" <${process.env.EMAIL_USER}>`,
                     to: email,
@@ -221,7 +229,7 @@ app.post('/api/recuperar-senha', (req, res) => {
                     html: `<p>Olá ${user.nome},</p>
                            <p>Você solicitou a recuperação de senha. Clique no link abaixo para criar uma nova senha:</p>
                            <p><a href="${resetLink}">Redefinir minha senha</a></p>
-                           <p>Se você não solicitou isso, ignore este e-mail.</p>`
+                           <p>Este link expira em <strong>1 hora</strong>. Se você não solicitou isso, ignore este e-mail.</p>`
                 };
 
                 transporter.sendMail(mailOptions, (error) => {
@@ -435,18 +443,35 @@ app.post('/api/agendamentos', autenticar, (req, res) => {
             }
 
             function executarInsercao(nomeClienteReal, finalVal, finalManut) {
-                const insertSql = `
-                    INSERT INTO agendamentos (cliente, cliente_id, profissional, servico, data, horario, duracao, isBloqueio, isManutencao, valor) 
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                `;
-                db.run(
-                    insertSql, 
-                    [nomeClienteReal, cliente_id, profissional, servico, data, horario, duracaoMinutos, isBloqueio ? 1 : 0, finalManut, finalVal], 
-                    function(err) {
-                        if (err) return res.status(500).json({ error: 'Erro ao criar agendamento no banco de dados.' });
-                        res.status(201).json({ message: 'Agendamento criado com sucesso!', id: this.lastID });
-                    }
-                );
+                if (tipo_usuario === 'cliente') {
+                    db.get('SELECT taxa_pendente FROM usuarios WHERE id = ?', [cliente_id], (err, row) => {
+                        let taxa = 0;
+                        if (row && row.taxa_pendente > 0) {
+                            taxa = row.taxa_pendente;
+                            finalVal += taxa;
+                            // Zera a taxa do usuario
+                            db.run('UPDATE usuarios SET taxa_pendente = 0 WHERE id = ?', [cliente_id]);
+                        }
+                        inserirAgendamento(nomeClienteReal, finalVal, finalManut);
+                    });
+                } else {
+                    inserirAgendamento(nomeClienteReal, finalVal, finalManut);
+                }
+
+                function inserirAgendamento(nomeCR, fVal, fManut) {
+                    const insertSql = `
+                        INSERT INTO agendamentos (cliente, cliente_id, profissional, servico, data, horario, duracao, isBloqueio, isManutencao, valor) 
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    `;
+                    db.run(
+                        insertSql, 
+                        [nomeCR, cliente_id, profissional, servico, data, horario, duracaoMinutos, isBloqueio ? 1 : 0, fManut, fVal], 
+                        function(err) {
+                            if (err) return res.status(500).json({ error: 'Erro ao criar agendamento no banco de dados.' });
+                            res.status(201).json({ message: 'Agendamento criado com sucesso!', id: this.lastID });
+                        }
+                    );
+                }
             }
         });
     });
@@ -456,14 +481,117 @@ app.post('/api/agendamentos', autenticar, (req, res) => {
 app.put('/api/agendamentos/:id/status', autenticar, (req, res) => {
     const { status } = req.body;
     const { id } = req.params;
+    const usuarioLogado = req.usuario; // id, tipo_usuario
 
-    db.run('UPDATE agendamentos SET status = ? WHERE id = ?', [status, id], function(err) {
-        if (err) return res.status(500).json({ error: 'Erro ao atualizar status' });
-        res.json({ message: 'Status atualizado com sucesso' });
+    db.get('SELECT * FROM agendamentos WHERE id = ?', [id], (err, agendamento) => {
+        if (err) return res.status(500).json({ error: 'Erro ao buscar agendamento' });
+        if (!agendamento) return res.status(404).json({ error: 'Agendamento não encontrado' });
+
+        // Se for cancelamento ou não compareceu
+        if (status === 'cancelado' || status === 'nao_compareceu') {
+            const dataHoraAgendamento = new Date(`${agendamento.data}T${agendamento.horario}:00`);
+            const agora = new Date();
+            const horasDiferenca = (dataHoraAgendamento - agora) / (1000 * 60 * 60);
+
+            // Log de WhatsApp fake
+            let msgZap = '';
+
+            if (usuarioLogado.tipo_usuario === 'cliente') {
+                msgZap = `[WhatsApp] Para a profissional ${agendamento.profissional}:\nA cliente ${agendamento.cliente} CANCELOU o agendamento de ${agendamento.servico} (Dia ${agendamento.data} às ${agendamento.horario}).`;
+
+                // Fetch professional phone to send WhatsApp
+                db.get('SELECT telefone FROM profissionais WHERE nome = ?', [agendamento.profissional], (err, prof) => {
+                    if (prof && prof.telefone) {
+                        enviarMensagemWhatsApp(prof.telefone, msgZap);
+                    }
+                });
+
+                // Regra das 72h ou cancelar após a hora
+                if (horasDiferenca < 72 || status === 'nao_compareceu') {
+                    if (agendamento.cliente_id) {
+                        db.run('UPDATE usuarios SET taxa_pendente = taxa_pendente + 50 WHERE id = ?', [agendamento.cliente_id]);
+                        console.log(`[TAXA] Aplicada taxa de R$ 50 para o cliente ID ${agendamento.cliente_id} (Cancelamento < 72h).`);
+                    }
+                }
+            } else if (usuarioLogado.tipo_usuario === 'profissional') {
+                msgZap = `[WhatsApp] Para a cliente ${agendamento.cliente}:\nOlá! A sua profissional ${agendamento.profissional} precisou CANCELAR o seu agendamento de ${agendamento.servico} (Dia ${agendamento.data} às ${agendamento.horario}). Por favor, entre em contato para reagendar.`;
+                
+                // Fetch client phone to send WhatsApp
+                db.get('SELECT telefone FROM usuarios WHERE id = ?', [agendamento.cliente_id], (err, user) => {
+                    if (user && user.telefone) {
+                        enviarMensagemWhatsApp(user.telefone, msgZap);
+                    }
+                });
+
+                // Se o profissional marca o cliente como não compareceu, aplica a taxa
+                if (status === 'nao_compareceu' && agendamento.cliente_id) {
+                    db.run('UPDATE usuarios SET taxa_pendente = taxa_pendente + 50 WHERE id = ?', [agendamento.cliente_id]);
+                    console.log(`[TAXA] Aplicada taxa de R$ 50 para o cliente ID ${agendamento.cliente_id} ('Não compareceu').`);
+                }
+            }
+
+            if (msgZap) {
+                console.log("\n==========================================");
+                console.log("             MENSAGEM WHATSAPP            ");
+                console.log("==========================================");
+                console.log(msgZap);
+                console.log("==========================================\n");
+
+                db.run(`INSERT INTO logs_notificacoes (usuario_id, agendamento_id, tipo_notificacao, mensagem, status) VALUES (?, ?, ?, ?, ?)`,
+                    [agendamento.cliente_id, agendamento.id, 'whatsapp', msgZap, 'enviado']
+                );
+            }
+        }
+
+        db.run('UPDATE agendamentos SET status = ? WHERE id = ?', [status, id], function(err) {
+            if (err) return res.status(500).json({ error: 'Erro ao atualizar status' });
+            res.json({ message: 'Status atualizado com sucesso' });
+        });
     });
 });
 
-// 7. EXCLUSÃO DE CONTA (Direito ao Esquecimento - LGPD Art. 18) — Protegido
+// Obter taxa_pendente do cliente
+app.get('/api/usuarios/:id/taxa', autenticar, (req, res) => {
+    const { id } = req.params;
+    if (parseInt(id) !== req.usuario.id) return res.status(403).json({ error: 'Proibido' });
+    db.get('SELECT taxa_pendente FROM usuarios WHERE id = ?', [id], (err, row) => {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json({ taxa_pendente: row ? row.taxa_pendente : 0 });
+    });
+});
+
+// 7. ATUALIZAÇÃO DE PERFIL — Protegido
+app.put('/api/usuarios/:id', autenticar, async (req, res) => {
+    const { id } = req.params;
+    const { nome, email, telefone, senha, foto_url } = req.body;
+
+    if (parseInt(id) !== req.usuario.id) {
+        return res.status(403).json({ error: 'Você não tem permissão para alterar este perfil.' });
+    }
+
+    const tabela = req.usuario.tipo_usuario === 'profissional' ? 'profissionais' : 'usuarios';
+
+    try {
+        if (senha && senha.trim() !== '') {
+            const hash = await bcrypt.hash(senha, 10);
+            db.run(`UPDATE ${tabela} SET nome=?, email=?, telefone=?, foto_url=?, senha_hash=? WHERE id=?`, 
+                [nome, email, telefone, foto_url, hash, id], function(err) {
+                if (err) return res.status(500).json({ error: 'Erro ao atualizar perfil com nova senha.' });
+                res.json({ message: 'Perfil atualizado com sucesso.' });
+            });
+        } else {
+            db.run(`UPDATE ${tabela} SET nome=?, email=?, telefone=?, foto_url=? WHERE id=?`, 
+                [nome, email, telefone, foto_url, id], function(err) {
+                if (err) return res.status(500).json({ error: 'Erro ao atualizar perfil.' });
+                res.json({ message: 'Perfil atualizado com sucesso.' });
+            });
+        }
+    } catch (error) {
+        res.status(500).json({ error: 'Erro interno do servidor.' });
+    }
+});
+
+// 8. EXCLUSÃO DE CONTA (Direito ao Esquecimento - LGPD Art. 18) — Protegido
 app.delete('/api/usuarios/:id', autenticar, (req, res) => {
     const { id } = req.params;
 

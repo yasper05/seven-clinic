@@ -7,8 +7,11 @@ const api = axios.create({
     baseURL: import.meta.env.VITE_API_URL,
 });
 
-// Interceptor de REQUEST: adiciona o token JWT se existir
+// Interceptor de REQUEST: adiciona o token JWT se existir e header do ngrok
 api.interceptors.request.use((config) => {
+    // Evita o bloqueio da tela de aviso do ngrok nas requisições da API
+    config.headers['ngrok-skip-browser-warning'] = 'true';
+
     const token = localStorage.getItem('authToken') || sessionStorage.getItem('authToken');
     if (token) {
         config.headers['Authorization'] = `Bearer ${token}`;

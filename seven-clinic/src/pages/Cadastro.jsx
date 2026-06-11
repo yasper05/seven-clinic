@@ -10,10 +10,40 @@ const Cadastro = () => {
     const [senha, setSenha] = useState('');
     const [erro, setErro] = useState('');
     const [sucesso, setSucesso] = useState('');
-    const [etapa, setEtapa] = useState('formulario'); // 'formulario' | 'verificacao'
+    const [etapa, setEtapa] = useState('formulario');
     const [codigo, setCodigo] = useState('');
     const [carregando, setCarregando] = useState(false);
     const [aceitouTermos, setAceitouTermos] = useState(false);
+    const [senhaFocada, setSenhaFocada] = useState(false);
+
+    // Máscara de telefone (XX) XXXXX-XXXX
+    const formatarTelefone = (valor) => {
+        const nums = valor.replace(/\D/g, '').slice(0, 11);
+        if (nums.length === 0) return '';
+        if (nums.length <= 2) return `(${nums}`;
+        if (nums.length <= 7) return `(${nums.slice(0,2)}) ${nums.slice(2)}`;
+        return `(${nums.slice(0,2)}) ${nums.slice(2,7)}-${nums.slice(7)}`;
+    };
+
+    const handleTelefone = (e) => {
+        setTelefone(formatarTelefone(e.target.value));
+    };
+
+    // Regras de senha
+    const regras = [
+        { label: 'Mínimo de 10 caracteres', ok: senha.length >= 10 },
+        { label: 'Uma letra maiúscula (A-Z)', ok: /[A-Z]/.test(senha) },
+        { label: 'Uma letra minúscula (a-z)', ok: /[a-z]/.test(senha) },
+        { label: 'Um número (0-9)', ok: /[0-9]/.test(senha) },
+        { label: 'Um caractere especial (!@#$...)', ok: /[!@#$%^&*(),.?":{}|<>]/.test(senha) },
+        {
+            label: 'Não pode conter seu nome',
+            ok: senha.length > 0 && (() => {
+                const primeiroNome = nome.split(' ')[0].toLowerCase();
+                return !(primeiroNome.length > 2 && senha.toLowerCase().includes(primeiroNome));
+            })()
+        },
+    ];
 
     const validarSenhaForte = (senha, nomeUsuario) => {
         if (senha.length < 10) return "A senha deve ter pelo menos 10 caracteres.";
@@ -30,7 +60,6 @@ const Cadastro = () => {
         return null;
     };
 
-    // Passo 1: envia os dados e recebe o código no email
     const handleCadastro = async (e) => {
         if (e) e.preventDefault();
         setErro('');
@@ -54,7 +83,6 @@ const Cadastro = () => {
         }
     };
 
-    // Passo 2: confirma o código de 6 dígitos
     const handleVerificar = async (e) => {
         e.preventDefault();
         setErro('');
@@ -76,15 +104,19 @@ const Cadastro = () => {
         <div className="main-container">
             <div className="left-side">
                 <img
-                    src="https://images.unsplash.com/photo-1560066984-138dadb4c035?q=80&w=1974&auto=format&fit=crop"
+                    src="/imagem/IMG_9051.JPG.jpeg"
                     alt="Ambiente Seven Clinic"
+                    style={{ objectPosition: 'top' }}
                 />
                 <div className="overlay">
                     <h1>Sua beleza,<br />nossa arte.</h1>
                 </div>
             </div>
 
-            <div className="right-side">
+            <div className="right-side" style={{ position: 'relative' }}>
+                <Link to="/" style={{ position: 'absolute', top: '30px', left: '40px', color: '#aaa', textDecoration: 'none', fontSize: '0.9rem', display: 'inline-flex', alignItems: 'center', gap: '5px', transition: 'color 0.3s' }} onMouseEnter={(e) => e.target.style.color = '#fff'} onMouseLeave={(e) => e.target.style.color = '#aaa'}>
+                    ← Voltar ao Início
+                </Link>
                 <div className="form-container">
 
                     {etapa === 'formulario' && (
@@ -92,7 +124,7 @@ const Cadastro = () => {
                             <h2>Crie sua conta</h2>
                             <p className="subtitle">Preencha seus dados para agendar seu momento.</p>
 
-                            {erro && <div style={{backgroundColor:'#ffebee',color:'#c62828',padding:'10px',borderRadius:'4px',marginBottom:'15px',fontSize:'0.9rem'}}>{erro}</div>}
+                            {erro && <div style={{ backgroundColor: '#ffebee', color: '#c62828', padding: '10px', borderRadius: '4px', marginBottom: '15px', fontSize: '0.9rem' }}>{erro}</div>}
 
                             <form onSubmit={handleCadastro}>
                                 <div className="input-group">
@@ -101,7 +133,14 @@ const Cadastro = () => {
                                 </div>
                                 <div className="input-group">
                                     <label htmlFor="telefone">Celular</label>
-                                    <input type="tel" id="telefone" placeholder="(XX) 9XXXX-XXXX" value={telefone} onChange={(e) => setTelefone(e.target.value)} required />
+                                    <input
+                                        type="tel"
+                                        id="telefone"
+                                        placeholder="(XX) XXXXX-XXXX"
+                                        value={telefone}
+                                        onChange={handleTelefone}
+                                        required
+                                    />
                                 </div>
                                 <div className="input-group">
                                     <label htmlFor="email">E-mail</label>
@@ -109,19 +148,39 @@ const Cadastro = () => {
                                 </div>
                                 <div className="input-group">
                                     <label htmlFor="senha">Senha</label>
-                                    <input type="password" id="senha" value={senha} onChange={(e) => setSenha(e.target.value)} required />
+                                    <input
+                                        type="password"
+                                        id="senha"
+                                        value={senha}
+                                        onChange={(e) => setSenha(e.target.value)}
+                                        onFocus={() => setSenhaFocada(true)}
+                                        required
+                                    />
                                 </div>
-                                <div style={{margin: '15px 0', fontSize: '0.85rem'}}>
-                                    <label style={{display: 'flex', alignItems: 'flex-start', gap: '8px', cursor: 'pointer', color: '#666', lineHeight: '1.4'}}>
+
+                                {/* Regras de senha — aparece ao clicar no campo */}
+                                {senhaFocada && (
+                                    <ul className="regras-senha">
+                                        {regras.map((r, i) => (
+                                            <li key={i} className={r.ok ? 'regra-ok' : 'regra-erro'}>
+                                                <span className="regra-icone">{r.ok ? '✓' : '✗'}</span>
+                                                {r.label}
+                                            </li>
+                                        ))}
+                                    </ul>
+                                )}
+
+                                <div style={{ margin: '15px 0', fontSize: '0.85rem' }}>
+                                    <label style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', cursor: 'pointer', color: '#666', lineHeight: '1.4' }}>
                                         <input
                                             type="checkbox"
                                             checked={aceitouTermos}
                                             onChange={(e) => setAceitouTermos(e.target.checked)}
-                                            style={{marginTop: '2px', cursor: 'pointer', flexShrink: 0}}
+                                            style={{ marginTop: '2px', cursor: 'pointer', flexShrink: 0 }}
                                         />
                                         <span>
                                             Li e concordo com a{' '}
-                                            <Link to="/politica-de-privacidade" target="_blank" style={{color:'#654b42', fontWeight: '600'}}>
+                                            <Link to="/politica-de-privacidade" target="_blank" style={{ color: '#654b42', fontWeight: '600' }}>
                                                 Política de Privacidade
                                             </Link>.
                                             Entendo que meus dados serão usados para gerenciar meus agendamentos e enviar lembretes.
@@ -143,11 +202,11 @@ const Cadastro = () => {
                         <>
                             <h2>Confirme seu e-mail</h2>
                             <p className="subtitle">
-                                Enviamos um código de 6 dígitos para <strong style={{color:'#fff'}}>{email}</strong>. Insira-o abaixo para ativar sua conta.
+                                Enviamos um código de 6 dígitos para <strong style={{ color: '#fff' }}>{email}</strong>. Insira-o abaixo para ativar sua conta.
                             </p>
 
-                            {erro && <div style={{backgroundColor:'#ffebee',color:'#c62828',padding:'10px',borderRadius:'4px',marginBottom:'15px',fontSize:'0.9rem'}}>{erro}</div>}
-                            {sucesso && <div style={{backgroundColor:'#e8f5e9',color:'#2e7d32',padding:'10px',borderRadius:'4px',marginBottom:'15px',fontSize:'0.9rem'}}>{sucesso}</div>}
+                            {erro && <div style={{ backgroundColor: '#ffebee', color: '#c62828', padding: '10px', borderRadius: '4px', marginBottom: '15px', fontSize: '0.9rem' }}>{erro}</div>}
+                            {sucesso && <div style={{ backgroundColor: '#e8f5e9', color: '#2e7d32', padding: '10px', borderRadius: '4px', marginBottom: '15px', fontSize: '0.9rem' }}>{sucesso}</div>}
 
                             <form onSubmit={handleVerificar}>
                                 <div className="input-group">
@@ -169,12 +228,12 @@ const Cadastro = () => {
                                 </button>
                             </form>
 
-                            <div className="links" style={{marginTop:'15px'}}>
-                                <p style={{fontSize:'0.85rem',color:'#aaa'}}>
+                            <div className="links" style={{ marginTop: '15px' }}>
+                                <p style={{ fontSize: '0.85rem', color: '#aaa' }}>
                                     Não recebeu?{' '}
                                     <button
                                         onClick={handleCadastro}
-                                        style={{background:'none',border:'none',color:'#fff',cursor:'pointer',textDecoration:'underline',fontSize:'0.85rem'}}
+                                        style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer', textDecoration: 'underline', fontSize: '0.85rem' }}
                                     >
                                         Reenviar código
                                     </button>
@@ -182,7 +241,7 @@ const Cadastro = () => {
                                 <p>
                                     <button
                                         onClick={() => { setEtapa('formulario'); setErro(''); setSucesso(''); }}
-                                        style={{background:'none',border:'none',color:'#aaa',cursor:'pointer',fontSize:'0.85rem',marginTop:'5px'}}
+                                        style={{ background: 'none', border: 'none', color: '#aaa', cursor: 'pointer', fontSize: '0.85rem', marginTop: '5px' }}
                                     >
                                         ← Voltar ao formulário
                                     </button>

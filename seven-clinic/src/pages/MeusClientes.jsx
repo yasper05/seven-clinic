@@ -12,6 +12,7 @@ const MeusClientes = () => {
     
     // Filtro básico apenas para visualização
     const [busca, setBusca] = useState('');
+    const [menuAberto, setMenuAberto] = useState(false);
 
     // Estados do Modal de Agendamento
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -87,12 +88,17 @@ const MeusClientes = () => {
             <aside className="sidebar">
                 <div className="sidebar-logo">
                     <h2>SEVEN <span className="logo-sub">CLINIC</span></h2>
+                    <button className="menu-hamburger dash-ham" onClick={() => setMenuAberto(!menuAberto)} aria-label="Menu">
+                        <span className={menuAberto ? 'ham-line open' : 'ham-line'}></span>
+                        <span className={menuAberto ? 'ham-line open' : 'ham-line'}></span>
+                        <span className={menuAberto ? 'ham-line open' : 'ham-line'}></span>
+                    </button>
                 </div>
-                <nav className="sidebar-nav">
+                <nav className={`sidebar-nav ${menuAberto ? 'menu-open' : ''}`}>
                     <ul>
-                        <li><a href="#" onClick={(e) => { e.preventDefault(); navigate('/painel-funcionaria'); }}>Agenda do Dia</a></li>
-                        <li className="active"><a href="#">Meus Clientes</a></li>
-                        <li><a href="#" onClick={(e) => { e.preventDefault(); navigate('/perfil-funcionaria'); }}>Perfil Profissional</a></li>
+                        <li><a href="#" onClick={(e) => { e.preventDefault(); setMenuAberto(false); navigate('/painel-funcionaria'); }}>Agenda do Dia</a></li>
+                        <li className="active"><a href="#" onClick={() => setMenuAberto(false)}>Meus Clientes</a></li>
+                        <li><a href="#" onClick={(e) => { e.preventDefault(); setMenuAberto(false); navigate('/perfil-funcionaria'); }}>Perfil Profissional</a></li>
                         <li><a href="#" onClick={(e) => { 
                             e.preventDefault(); 
                             localStorage.removeItem('userLogado'); 
