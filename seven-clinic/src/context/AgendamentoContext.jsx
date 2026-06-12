@@ -38,22 +38,51 @@ export const AgendamentoProvider = ({ children }) => {
     }
   };
 
-
-  const cancelarAgendamento = async (id) => {
+  const confirmarAgendamento = async (id, dadosConfirmacao = {}) => {
     try {
-      await api.put(`/api/agendamentos/${id}/status`, { status: 'cancelado' });
+      await api.put(`/api/agendamentos/${id}/status`, { status: 'confirmado', ...dadosConfirmacao });
+      buscarAgendamentos();
+      return { success: true };
+    } catch (error) {
+      console.error('Erro ao confirmar agendamento:', error);
+      const msg = error.response?.data?.error || error.message || 'Erro desconhecido';
+      return { error: msg };
+    }
+  };
+
+  const recusarAgendamento = async (id) => {
+    try {
+      await api.put(`/api/agendamentos/${id}/status`, { status: 'recusado', cancelado_por: 'Clínica' });
+      buscarAgendamentos();
+    } catch (error) {
+      console.error('Erro ao recusar agendamento:', error);
+    }
+  };
+
+  const cancelarAgendamento = async (id, canceladoPor = 'Cliente') => {
+    try {
+      await api.put(`/api/agendamentos/${id}/status`, { status: 'cancelado', cancelado_por: canceladoPor });
       buscarAgendamentos();
     } catch (error) {
       console.error('Erro ao cancelar agendamento:', error);
     }
   };
 
-  const concluirAgendamento = async (id) => {
+  const concluirAgendamento = async (id, dadosConclusao = {}) => {
     try {
-      await api.put(`/api/agendamentos/${id}/status`, { status: 'concluido' });
+      await api.put(`/api/agendamentos/${id}/status`, { status: 'concluido', ...dadosConclusao });
       buscarAgendamentos();
     } catch (error) {
       console.error('Erro ao concluir agendamento:', error);
+    }
+  };
+
+  const avaliarAtendimento = async (id, nota_profissional) => {
+    try {
+      await api.put(`/api/agendamentos/${id}/avaliar`, { nota_profissional });
+      buscarAgendamentos();
+    } catch (error) {
+      console.error('Erro ao avaliar atendimento:', error);
     }
   };
 
@@ -73,7 +102,10 @@ export const AgendamentoProvider = ({ children }) => {
         adicionarAgendamento, 
         cancelarAgendamento, 
         concluirAgendamento,
-        naoCompareceuAgendamento 
+        naoCompareceuAgendamento,
+        confirmarAgendamento,
+        recusarAgendamento,
+        avaliarAtendimento
     }}>
       {children}
     </AgendamentoContext.Provider>

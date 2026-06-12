@@ -5,11 +5,17 @@ import api from '../api';
 const Login = () => {
   const navigate = useNavigate();
   const [isProfissional, setIsProfissional] = useState(false);
-  const [email, setEmail] = useState('');
+  const [email, setEmail] = useState(() => sessionStorage.getItem('loginEmail') || '');
   const [senha, setSenha] = useState('');
   const [erro, setErro] = useState('');
   const [lembrarMim, setLembrarMim] = useState(false);
   const [mostrarSenha, setMostrarSenha] = useState(false);
+
+  // Salva o email no sessionStorage para preservar ao navegar entre páginas
+  const handleEmailChange = (e) => {
+    setEmail(e.target.value);
+    sessionStorage.setItem('loginEmail', e.target.value);
+  };
 
   React.useEffect(() => {
     const userJson = localStorage.getItem('userLogado') || sessionStorage.getItem('userLogado');
@@ -34,7 +40,7 @@ const Login = () => {
     setErro('');
 
     try {
-      const response = await api.post('/api/login', { email, senha, isProfissional });
+      const response = await api.post('/api/login', { email, senha, isProfissional, lembrar_mim: lembrarMim });
       const { user, token } = response.data;
 
       // Validação básica se a aba selecionada condiz com o tipo da conta
@@ -59,6 +65,8 @@ const Login = () => {
         localStorage.removeItem('authToken');
         localStorage.removeItem('userLogado');
       }
+      // Limpa o email salvo temporariamente após login com sucesso
+      sessionStorage.removeItem('loginEmail');
 
       if (isProfissional) {
         navigate('/painel-funcionaria');
@@ -136,7 +144,7 @@ const Login = () => {
           <form onSubmit={handleLogin}>
             <div className="input-group">
               <label htmlFor="email">E-mail</label>
-              <input type="email" id="email" placeholder="seu@email.com" value={email} onChange={(e) => setEmail(e.target.value)} required />
+              <input type="email" id="email" placeholder="seu@email.com" value={email} onChange={handleEmailChange} required />
             </div>
 
             <div className="input-group" style={{ position: 'relative' }}>

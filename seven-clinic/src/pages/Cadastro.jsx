@@ -15,6 +15,7 @@ const Cadastro = () => {
     const [carregando, setCarregando] = useState(false);
     const [aceitouTermos, setAceitouTermos] = useState(false);
     const [senhaFocada, setSenhaFocada] = useState(false);
+    const [mostrarSenha, setMostrarSenha] = useState(false);
 
     // Máscara de telefone (XX) XXXXX-XXXX
     const formatarTelefone = (valor) => {
@@ -146,16 +147,35 @@ const Cadastro = () => {
                                     <label htmlFor="email">E-mail</label>
                                     <input type="email" id="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
                                 </div>
-                                <div className="input-group">
+                                <div className="input-group" style={{ position: 'relative' }}>
                                     <label htmlFor="senha">Senha</label>
                                     <input
-                                        type="password"
+                                        type={mostrarSenha ? "text" : "password"}
                                         id="senha"
                                         value={senha}
                                         onChange={(e) => setSenha(e.target.value)}
                                         onFocus={() => setSenhaFocada(true)}
                                         required
+                                        style={{ paddingRight: '80px' }}
                                     />
+                                    <button
+                                        type="button"
+                                        onClick={() => setMostrarSenha(!mostrarSenha)}
+                                        style={{
+                                            position: 'absolute',
+                                            right: '15px',
+                                            bottom: '14px',
+                                            background: 'none',
+                                            border: 'none',
+                                            color: '#888',
+                                            cursor: 'pointer',
+                                            fontSize: '0.8rem',
+                                            fontWeight: 'bold',
+                                            textTransform: 'uppercase'
+                                        }}
+                                    >
+                                        {mostrarSenha ? 'Ocultar' : 'Mostrar'}
+                                    </button>
                                 </div>
 
                                 {/* Regras de senha — aparece ao clicar no campo */}

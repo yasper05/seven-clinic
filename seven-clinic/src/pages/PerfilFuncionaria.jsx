@@ -16,8 +16,17 @@ const PerfilFuncionaria = () => {
     const [telefone, setTelefone] = useState(userLogado.telefone || '');
     const [senha, setSenha] = useState('');
     const [mostrarSenha, setMostrarSenha] = useState(false);
-    const [bio, setBio] = useState('Especialista em Cílios e Design de Sobrancelha com mais de 5 anos de experiência em visagismo facial.');
-    const [especialidades, setEspecialidades] = useState('Cílios Volume Brasileiro, Design de Sobrancelha');
+    
+    // Bio e Especialidades (agora usando dados reais ou defaults se vazio)
+    const [bio, setBio] = useState(userLogado.bio || 'Especialista com mais de 5 anos de experiência.');
+    const [novaEspecialidade, setNovaEspecialidade] = useState('');
+    const [especialidades, setEspecialidades] = useState(() => {
+        if (userLogado.especialidades) {
+            return userLogado.especialidades.split(',').map(s => s.trim()).filter(Boolean);
+        }
+        return ['Cílios', 'Design de Sobrancelha'];
+    });
+    
     const [menuAberto, setMenuAberto] = useState(false);
 
     const handleSalvar = async (e) => {
@@ -28,7 +37,9 @@ const PerfilFuncionaria = () => {
                 email,
                 telefone,
                 senha,
-                foto_url: fotoPerfil
+                foto_url: fotoPerfil,
+                bio,
+                especialidades: especialidades.join(', ')
             };
 
             // Using the same endpoint as clients for now, since it handles both based on user type
@@ -36,7 +47,7 @@ const PerfilFuncionaria = () => {
             await api.put(`/api/usuarios/${userLogado.id}`, body);
 
             // Atualiza sessão
-            const newUserLogado = { ...userLogado, nome, email, telefone, foto_url: fotoPerfil };
+            const newUserLogado = { ...userLogado, nome, email, telefone, foto_url: fotoPerfil, bio, especialidades: especialidades.join(', ') };
             if (localStorage.getItem('userLogado')) {
                 localStorage.setItem('userLogado', JSON.stringify(newUserLogado));
             } else {
@@ -58,8 +69,25 @@ const PerfilFuncionaria = () => {
         const file = e.target.files[0];
         if (file) {
             const reader = new FileReader();
-            reader.onloadend = () => {
-                setFotoPerfil(reader.result);
+            reader.onloadend = async () => {
+                const base64Foto = reader.result;
+                setFotoPerfil(base64Foto);
+                
+                // Salvar automaticamente a foto no banco de dados
+                try {
+                    const body = { nome, email, telefone, foto_url: base64Foto };
+                    const { default: api } = await import('../api');
+                    await api.put(`/api/usuarios/${userLogado.id}`, body);
+                    
+                    const newUserLogado = { ...userLogado, foto_url: base64Foto };
+                    if (localStorage.getItem('userLogado')) {
+                        localStorage.setItem('userLogado', JSON.stringify(newUserLogado));
+                    } else {
+                        sessionStorage.setItem('userLogado', JSON.stringify(newUserLogado));
+                    }
+                } catch (error) {
+                    alert('Aviso: A foto foi alterada na tela, mas houve um erro ao salvar no servidor.');
+                }
             };
             reader.readAsDataURL(file);
         }
@@ -79,6 +107,7 @@ const PerfilFuncionaria = () => {
                 <nav className={`sidebar-nav ${menuAberto ? 'menu-open' : ''}`}>
                     <ul>
                         <li><a href="#" onClick={(e) => { e.preventDefault(); setMenuAberto(false); navigate('/painel-funcionaria'); }}>Agenda do Dia</a></li>
+                        <li><a href="#" onClick={(e) => { e.preventDefault(); setMenuAberto(false); navigate('/dashboard-funcionaria'); }}>Painel de Controle</a></li>
                         <li><a href="#" onClick={(e) => { e.preventDefault(); setMenuAberto(false); navigate('/meus-clientes'); }}>Meus Clientes</a></li>
                         <li className="active"><a href="#" onClick={() => setMenuAberto(false)}>Perfil Profissional</a></li>
                         <li><a href="#" onClick={(e) => { 
@@ -118,7 +147,7 @@ const PerfilFuncionaria = () => {
                                     accept="image/*" 
                                     style={{ display: 'none' }} 
                                 />
-                                <button type="button" className="btn-secondary btn-small" style={{marginTop: '15px'}} onClick={handleFotoClick}>Atualizar Foto</button>
+                                <button type="button" className="btn-secondary btn-small" style={{marginTop: '15px'}} onClick={handleFotoClick}>Trocar Foto</button>
                             </div>
 
                             {/* Lado Direito: Formulário */}
@@ -150,8 +179,60 @@ const PerfilFuncionaria = () => {
                                     <h3 style={{marginTop: '20px', marginBottom: '20px', fontWeight: '500'}}>Perfil Público</h3>
                                     
                                     <div className="input-group">
-                                        <label>Especialidades (separadas por vírgula)</label>
-                                        <input type="text" value={especialidades} onChange={(e) => setEspecialidades(e.target.value)} required />
+                                        <label>Especialidades</label>
+                                        <div style={{ display: 'flex', gap: '10px', marginBottom: '10px' }}>
+                                            <input 
+                                                type="text" 
+                                                value={novaEspecialidade} 
+                                                onChange={(e) => setNovaEspecialidade(e.target.value)} 
+                                                placeholder="Digite uma especialidade"
+                                                onKeyDown={(e) => {
+                                                    if (e.key === 'Enter') {
+                                                        e.preventDefault();
+                                                        if (novaEspecialidade.trim()) {
+                                                            setEspecialidades([...especialidades, novaEspecialidade.trim()]);
+                                                            setNovaEspecialidade('');
+                                                        }
+                                                    }
+                                                }}
+                                            />
+                                            <button 
+                                                type="button" 
+                                                className="btn-secondary" 
+                                                style={{ width: 'auto', padding: '0 20px', borderRadius: '4px' }}
+                                                onClick={() => {
+                                                    if (novaEspecialidade.trim()) {
+                                                        setEspecialidades([...especialidades, novaEspecialidade.trim()]);
+                                                        setNovaEspecialidade('');
+                                                    }
+                                                }}
+                                            >
+                                                Adicionar
+                                            </button>
+                                        </div>
+                                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                                            {especialidades.map((esp, idx) => (
+                                                <div key={idx} style={{ 
+                                                    backgroundColor: '#eaddd7', 
+                                                    color: '#654b42', 
+                                                    padding: '5px 12px', 
+                                                    borderRadius: '20px', 
+                                                    display: 'flex', 
+                                                    alignItems: 'center', 
+                                                    gap: '8px',
+                                                    fontSize: '0.9rem',
+                                                    border: '1px solid #d5c4bd'
+                                                }}>
+                                                    {esp}
+                                                    <span 
+                                                        style={{ cursor: 'pointer', fontWeight: 'bold', marginLeft: '5px' }} 
+                                                        onClick={() => setEspecialidades(especialidades.filter((_, i) => i !== idx))}
+                                                    >
+                                                        ×
+                                                    </span>
+                                                </div>
+                                            ))}
+                                        </div>
                                     </div>
 
                                     <div className="input-group">

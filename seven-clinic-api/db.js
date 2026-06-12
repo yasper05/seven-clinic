@@ -69,6 +69,10 @@ function inicializarBanco() {
                 isBloqueio BOOLEAN DEFAULT 0,
                 isManutencao BOOLEAN DEFAULT 0,
                 valor REAL,
+                observacoes TEXT,
+                nota_cliente INTEGER,
+                nota_profissional INTEGER,
+                cancelado_por TEXT,
                 FOREIGN KEY (cliente_id) REFERENCES usuarios(id)
             )
         `);
@@ -159,6 +163,10 @@ function inicializarBanco() {
         db.run("ALTER TABLE agendamentos ADD COLUMN isManutencao BOOLEAN DEFAULT 0", () => {});
         db.run("ALTER TABLE agendamentos ADD COLUMN valor REAL", () => {});
         db.run("ALTER TABLE agendamentos ADD COLUMN duracao INTEGER DEFAULT 30", () => {});
+        db.run("ALTER TABLE agendamentos ADD COLUMN observacoes TEXT", () => {});
+        db.run("ALTER TABLE agendamentos ADD COLUMN nota_cliente INTEGER", () => {});
+        db.run("ALTER TABLE agendamentos ADD COLUMN nota_profissional INTEGER", () => {});
+        db.run("ALTER TABLE agendamentos ADD COLUMN cancelado_por TEXT", () => {});
         db.run("ALTER TABLE usuarios ADD COLUMN taxa_pendente REAL DEFAULT 0", () => {});
 
         // Criação de dados padrões (Seeding) para facilitar testes iniciais

@@ -37,7 +37,10 @@ CREATE TABLE IF NOT EXISTS agendamentos (
     data TEXT NOT NULL,
     horario TEXT NOT NULL,
     status TEXT DEFAULT 'pendente', -- 'pendente', 'concluido', 'cancelado'
-    isBloqueio BOOLEAN DEFAULT 0
+    isBloqueio BOOLEAN DEFAULT 0,
+    observacoes TEXT,
+    nota_cliente INTEGER,
+    nota_profissional INTEGER
 );
 
 -- TABELA: recuperacao_senha (Controle de tokens)

@@ -54,8 +54,25 @@ const PerfilCliente = () => {
         const file = e.target.files[0];
         if (file) {
             const reader = new FileReader();
-            reader.onloadend = () => {
-                setFotoPerfil(reader.result);
+            reader.onloadend = async () => {
+                const base64Foto = reader.result;
+                setFotoPerfil(base64Foto);
+                
+                // Salvar automaticamente a foto no banco de dados
+                try {
+                    const body = { nome, email, telefone, foto_url: base64Foto };
+                    const { default: api } = await import('../api');
+                    await api.put(`/api/usuarios/${userLogado.id}`, body);
+                    
+                    const newUserLogado = { ...userLogado, foto_url: base64Foto };
+                    if (localStorage.getItem('userLogado')) {
+                        localStorage.setItem('userLogado', JSON.stringify(newUserLogado));
+                    } else {
+                        sessionStorage.setItem('userLogado', JSON.stringify(newUserLogado));
+                    }
+                } catch (error) {
+                    alert('Aviso: A foto foi alterada na tela, mas houve um erro ao salvar no servidor.');
+                }
             };
             reader.readAsDataURL(file);
         }
