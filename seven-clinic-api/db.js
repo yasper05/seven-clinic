@@ -25,7 +25,8 @@ function inicializarBanco() {
                 email TEXT UNIQUE NOT NULL,
                 senha_hash TEXT NOT NULL,
                 telefone TEXT,
-                foto_url TEXT
+                foto_url TEXT,
+                taxa_pendente REAL DEFAULT 0
             )
         `);
 
@@ -68,6 +69,10 @@ function inicializarBanco() {
                 isBloqueio BOOLEAN DEFAULT 0,
                 isManutencao BOOLEAN DEFAULT 0,
                 valor REAL,
+                observacoes TEXT,
+                nota_cliente INTEGER,
+                nota_profissional INTEGER,
+                cancelado_por TEXT,
                 FOREIGN KEY (cliente_id) REFERENCES usuarios(id)
             )
         `);
@@ -153,11 +158,16 @@ function inicializarBanco() {
 
         console.log('[SUCESSO] Tabelas criadas/verificadas com sucesso no banco de dados.');
 
-        // Garante que novas colunas existam na tabela de agendamentos (migração segura para bancos existentes)
+        // Garante que novas colunas existam na tabela de agendamentos e usuarios (migração segura para bancos existentes)
         db.run("ALTER TABLE agendamentos ADD COLUMN cliente_id INTEGER", () => {});
         db.run("ALTER TABLE agendamentos ADD COLUMN isManutencao BOOLEAN DEFAULT 0", () => {});
         db.run("ALTER TABLE agendamentos ADD COLUMN valor REAL", () => {});
         db.run("ALTER TABLE agendamentos ADD COLUMN duracao INTEGER DEFAULT 30", () => {});
+        db.run("ALTER TABLE agendamentos ADD COLUMN observacoes TEXT", () => {});
+        db.run("ALTER TABLE agendamentos ADD COLUMN nota_cliente INTEGER", () => {});
+        db.run("ALTER TABLE agendamentos ADD COLUMN nota_profissional INTEGER", () => {});
+        db.run("ALTER TABLE agendamentos ADD COLUMN cancelado_por TEXT", () => {});
+        db.run("ALTER TABLE usuarios ADD COLUMN taxa_pendente REAL DEFAULT 0", () => {});
 
         // Criação de dados padrões (Seeding) para facilitar testes iniciais
         popularBancoInicial();

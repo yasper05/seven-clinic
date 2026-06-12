@@ -44,3 +44,8 @@ lerna-debug.log*
 # WhatsApp Session Data
 .wwebjs_auth/
 **/.wwebjs_auth/
+.wwebjs_cache/
+**/.wwebjs_cache/
+.puppeteer-cache/
+**/.puppeteer-cache/
+node-portable/

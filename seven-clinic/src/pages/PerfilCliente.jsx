@@ -11,12 +11,71 @@ const PerfilCliente = () => {
     const [email, setEmail] = useState(userLogado.email || '');
     const [telefone, setTelefone] = useState(userLogado.telefone || '');
     const [senha, setSenha] = useState('');
+    const [mostrarSenha, setMostrarSenha] = useState(false);
+    const [fotoPerfil, setFotoPerfil] = useState(userLogado.foto_url || null);
     const [excluindo, setExcluindo] = useState(false);
+    const [menuAberto, setMenuAberto] = useState(false);
+    
+    const fileInputRef = React.useRef(null);
 
-    const handleSalvar = (e) => {
+    const handleSalvar = async (e) => {
         e.preventDefault();
-        alert('Perfil atualizado com sucesso!');
-        setSenha('');
+        try {
+            const body = {
+                nome,
+                email,
+                telefone,
+                senha,
+                foto_url: fotoPerfil
+            };
+
+            await api.put(`/api/usuarios/${userLogado.id}`, body);
+
+            // Atualiza sessão
+            const newUserLogado = { ...userLogado, nome, email, telefone, foto_url: fotoPerfil };
+            if (localStorage.getItem('userLogado')) {
+                localStorage.setItem('userLogado', JSON.stringify(newUserLogado));
+            } else {
+                sessionStorage.setItem('userLogado', JSON.stringify(newUserLogado));
+            }
+
+            alert('Perfil atualizado com sucesso!');
+            setSenha('');
+        } catch (error) {
+            alert(error.response?.data?.error || 'Erro ao atualizar o perfil. Tente novamente.');
+        }
+    };
+
+    const handleFotoClick = () => {
+        fileInputRef.current.click();
+    };
+
+    const handleFotoChange = (e) => {
+        const file = e.target.files[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onloadend = async () => {
+                const base64Foto = reader.result;
+                setFotoPerfil(base64Foto);
+                
+                // Salvar automaticamente a foto no banco de dados
+                try {
+                    const body = { nome, email, telefone, foto_url: base64Foto };
+                    const { default: api } = await import('../api');
+                    await api.put(`/api/usuarios/${userLogado.id}`, body);
+                    
+                    const newUserLogado = { ...userLogado, foto_url: base64Foto };
+                    if (localStorage.getItem('userLogado')) {
+                        localStorage.setItem('userLogado', JSON.stringify(newUserLogado));
+                    } else {
+                        sessionStorage.setItem('userLogado', JSON.stringify(newUserLogado));
+                    }
+                } catch (error) {
+                    alert('Aviso: A foto foi alterada na tela, mas houve um erro ao salvar no servidor.');
+                }
+            };
+            reader.readAsDataURL(file);
+        }
     };
 
     const handleExcluirConta = async () => {
@@ -51,12 +110,17 @@ const PerfilCliente = () => {
             <aside className="sidebar">
                 <div className="sidebar-logo">
                     <h2>SEVEN <span className="logo-sub">CLINIC</span></h2>
+                    <button className="menu-hamburger dash-ham" onClick={() => setMenuAberto(!menuAberto)} aria-label="Menu">
+                        <span className={menuAberto ? 'ham-line open' : 'ham-line'}></span>
+                        <span className={menuAberto ? 'ham-line open' : 'ham-line'}></span>
+                        <span className={menuAberto ? 'ham-line open' : 'ham-line'}></span>
+                    </button>
                 </div>
-                <nav className="sidebar-nav">
+                <nav className={`sidebar-nav ${menuAberto ? 'menu-open' : ''}`}>
                     <ul>
-                        <li><a href="#" onClick={(e) => { e.preventDefault(); navigate('/painel-cliente'); }}>Meus Agendamentos</a></li>
-                        <li><a href="#" onClick={(e) => { e.preventDefault(); navigate('/painel-cliente'); }}>Novo Agendamento</a></li>
-                        <li className="active"><a href="#">Perfil</a></li>
+                        <li><a href="#" onClick={(e) => { e.preventDefault(); setMenuAberto(false); navigate('/painel-cliente'); }}>Meus Agendamentos</a></li>
+                        <li><a href="#" onClick={(e) => { e.preventDefault(); setMenuAberto(false); navigate('/painel-cliente'); }}>Novo Agendamento</a></li>
+                        <li className="active"><a href="#" onClick={() => setMenuAberto(false)}>Perfil</a></li>
                         <li><a href="#" onClick={(e) => { 
                             e.preventDefault(); 
                             localStorage.removeItem('userLogado'); 
@@ -79,10 +143,21 @@ const PerfilCliente = () => {
                     <div className="profile-card">
                         <div className="profile-layout">
                             <div className="profile-avatar-col">
-                                <div className="avatar-circle">
-                                    <span className="avatar-initials">{nome.charAt(0)}</span>
+                                <div className="avatar-circle" style={{ overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                    {fotoPerfil ? (
+                                        <img src={fotoPerfil} alt="Perfil" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                    ) : (
+                                        <span className="avatar-initials">{nome.charAt(0)}</span>
+                                    )}
                                 </div>
-                                <button className="btn-secondary btn-small" style={{marginTop: '15px'}}>Trocar Foto</button>
+                                <input 
+                                    type="file" 
+                                    ref={fileInputRef} 
+                                    onChange={handleFotoChange} 
+                                    accept="image/*" 
+                                    style={{ display: 'none' }} 
+                                />
+                                <button type="button" className="btn-secondary btn-small" style={{marginTop: '15px'}} onClick={handleFotoClick}>Trocar Foto</button>
                             </div>
 
                             <div className="profile-form-col">
@@ -90,8 +165,13 @@ const PerfilCliente = () => {
                                     <h3 style={{marginBottom: '20px', fontWeight: '500'}}>Dados Pessoais</h3>
 
                                     <div className="input-group">
-                                        <label>Nome Completo</label>
-                                        <input type="text" value={nome} onChange={(e) => setNome(e.target.value)} required />
+                                        <label>Nome Completo (Não pode ser alterado)</label>
+                                        <input 
+                                            type="text" 
+                                            value={nome} 
+                                            readOnly 
+                                            style={{ backgroundColor: '#f0f0f0', color: '#666', cursor: 'not-allowed' }}
+                                        />
                                     </div>
 
                                     <div style={{display: 'flex', gap: '15px'}}>
@@ -107,9 +187,33 @@ const PerfilCliente = () => {
 
                                     <h3 style={{marginTop: '20px', marginBottom: '20px', fontWeight: '500'}}>Segurança</h3>
 
-                                    <div className="input-group">
+                                    <div className="input-group" style={{ position: 'relative' }}>
                                         <label>Nova Senha (deixe em branco para não alterar)</label>
-                                        <input type="password" value={senha} onChange={(e) => setSenha(e.target.value)} placeholder="••••••••" />
+                                        <input 
+                                            type={mostrarSenha ? "text" : "password"} 
+                                            value={senha} 
+                                            onChange={(e) => setSenha(e.target.value)} 
+                                            placeholder="••••••••" 
+                                            style={{ paddingRight: '80px' }}
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={() => setMostrarSenha(!mostrarSenha)}
+                                            style={{
+                                                position: 'absolute',
+                                                right: '15px',
+                                                bottom: '14px',
+                                                background: 'none',
+                                                border: 'none',
+                                                color: '#888',
+                                                cursor: 'pointer',
+                                                fontSize: '0.8rem',
+                                                fontWeight: 'bold',
+                                                textTransform: 'uppercase'
+                                            }}
+                                        >
+                                            {mostrarSenha ? 'Ocultar' : 'Mostrar'}
+                                        </button>
                                     </div>
 
                                     <button type="submit" className="btn-primary" style={{marginTop: '20px', width: 'auto', padding: '12px 30px'}}>

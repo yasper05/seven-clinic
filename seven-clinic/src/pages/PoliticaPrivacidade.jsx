@@ -4,6 +4,17 @@ import { Link, useNavigate } from 'react-router-dom';
 const PoliticaPrivacidade = () => {
     const navigate = useNavigate();
 
+    const handleVoltar = () => {
+        if (window.history.length > 1 && document.referrer) {
+            navigate(-1);
+        } else {
+            window.close();
+            setTimeout(() => {
+                navigate('/cadastro');
+            }, 100);
+        }
+    };
+
     return (
         <div style={{minHeight: '100vh', background: '#fafafa', fontFamily: "'Inter', 'Segoe UI', sans-serif"}}>
             {/* Header */}
@@ -12,7 +23,7 @@ const PoliticaPrivacidade = () => {
                     SEVEN <span style={{color: '#c9a99a'}}>CLINIC</span>
                 </h1>
                 <button
-                    onClick={() => navigate(-1)}
+                    onClick={handleVoltar}
                     style={{background: 'none', border: '1px solid #555', color: '#ddd', borderRadius: '6px', padding: '6px 16px', cursor: 'pointer', fontSize: '0.85rem'}}
                 >
                     ← Voltar
@@ -135,7 +146,7 @@ const PoliticaPrivacidade = () => {
 
                 <div style={{marginTop: '48px', textAlign: 'center'}}>
                     <button
-                        onClick={() => navigate(-1)}
+                        onClick={handleVoltar}
                         className="btn-primary"
                         style={{width: 'auto', padding: '12px 32px'}}
                     >

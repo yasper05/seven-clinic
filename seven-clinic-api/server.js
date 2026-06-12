@@ -8,6 +8,7 @@ const crypto = require('crypto');
 const path = require('path');
 const db = require('./db');
 require('./whatsapp');
+const { enviarMensagemWhatsApp } = require('./whatsapp');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -22,7 +23,8 @@ app.use(cors({
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'ngrok-skip-browser-warning'],
 }));
-app.use(express.json());
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
 app.use((req, res, next) => { res.setHeader('ngrok-skip-browser-warning', 'true'); next(); });
 
 // ============================================
@@ -161,7 +163,7 @@ app.post('/api/verificar-email', (req, res) => {
 
 // 1. LOGIN — Retorna JWT
 app.post('/api/login', (req, res) => {
-    const { email, senha, isProfissional } = req.body;
+    const { email, senha, isProfissional, lembrar_mim } = req.body;
 
     const tabela = isProfissional ? 'profissionais' : 'usuarios';
     const sql = `SELECT * FROM ${tabela} WHERE email = ?`;
@@ -184,7 +186,7 @@ app.post('/api/login', (req, res) => {
             const token = jwt.sign(
                 { id: user.id, email: user.email, tipo_usuario: userData.tipo_usuario },
                 JWT_SECRET,
-                { expiresIn: '12h' }
+                { expiresIn: lembrar_mim ? '30d' : '12h' }
             );
 
             res.json({ message: 'Login realizado com sucesso', user: userData, token });
@@ -197,6 +199,10 @@ app.post('/api/login', (req, res) => {
 // 5. RECUPERAÇÃO DE SENHA — Pública
 app.post('/api/recuperar-senha', (req, res) => {
     const { email } = req.body;
+
+    // Detecta automaticamente se está vindo do ngrok ou do localhost
+    const origin = req.headers['origin'] || req.headers['referer'] || FRONTEND_URL;
+    const frontendUrl = origin.replace(/\/$/, '').split('/').slice(0, 3).join('/');
 
     db.get(
         'SELECT id, nome, "cliente" as tipo FROM usuarios WHERE email = ? UNION SELECT id, nome, "profissional" as tipo FROM profissionais WHERE email = ?',
@@ -213,7 +219,9 @@ app.post('/api/recuperar-senha', (req, res) => {
             db.run('INSERT INTO recuperacao_senha (email, token, expiracao) VALUES (?, ?, ?)', [email, token, expiracao], function(err) {
                 if (err) return res.status(500).json({ error: 'Erro ao gerar token de recuperação' });
 
-                const resetLink = `${FRONTEND_URL}/redefinir-senha?token=${token}`;
+                const resetLink = `${frontendUrl}/redefinir-senha?token=${token}`;
+                console.log(`[RECUPERAR SENHA] Link gerado para ${email}: ${resetLink}`);
+
                 const mailOptions = {
                     from: `"Seven Clinic Suporte" <${process.env.EMAIL_USER}>`,
                     to: email,
@@ -221,7 +229,7 @@ app.post('/api/recuperar-senha', (req, res) => {
                     html: `<p>Olá ${user.nome},</p>
                            <p>Você solicitou a recuperação de senha. Clique no link abaixo para criar uma nova senha:</p>
                            <p><a href="${resetLink}">Redefinir minha senha</a></p>
-                           <p>Se você não solicitou isso, ignore este e-mail.</p>`
+                           <p>Este link expira em <strong>1 hora</strong>. Se você não solicitou isso, ignore este e-mail.</p>`
                 };
 
                 transporter.sendMail(mailOptions, (error) => {
@@ -312,7 +320,12 @@ app.get('/api/profissionais', autenticar, (req, res) => {
 
 // 4. AGENDAMENTOS — Protegido
 app.get('/api/agendamentos', autenticar, (req, res) => {
-    db.all('SELECT * FROM agendamentos', [], (err, rows) => {
+    const sql = `
+        SELECT a.*, u.email as clienteEmail, u.telefone as clienteTelefone 
+        FROM agendamentos a 
+        LEFT JOIN usuarios u ON a.cliente_id = u.id
+    `;
+    db.all(sql, [], (err, rows) => {
         if (err) return res.status(500).json({ error: err.message });
         const formatados = rows.map(r => ({ 
             ...r, 
@@ -331,7 +344,7 @@ app.get('/api/agendamentos/disponibilidade', autenticar, (req, res) => {
         return res.status(400).json({ error: 'Parâmetros profissional e data são obrigatórios.' });
     }
     db.all(
-        `SELECT horario, duracao FROM agendamentos WHERE profissional = ? AND data = ? AND status != 'cancelado'`,
+        `SELECT horario, duracao FROM agendamentos WHERE profissional = ? AND data = ? AND status IN ('confirmado', 'concluido')`,
         [profissional, data],
         (err, rows) => {
             if (err) return res.status(500).json({ error: err.message });
@@ -343,7 +356,7 @@ app.get('/api/agendamentos/disponibilidade', autenticar, (req, res) => {
 // Criar agendamento — Protegido
 app.post('/api/agendamentos', autenticar, (req, res) => {
     const { cliente, profissional, servico, data, horario, isBloqueio, isManutencao, valor, duracao } = req.body;
-    const cliente_id = req.usuario.id;
+    let cliente_id = req.usuario.id;
     const tipo_usuario = req.usuario.tipo_usuario;
     const duracaoMinutos = duracao || 30;
 
@@ -353,21 +366,53 @@ app.post('/api/agendamentos', autenticar, (req, res) => {
         return h * 60 + m;
     };
 
-    // Helper to get client's real name
-    const obterNomeCliente = new Promise((resolve) => {
+    // Helper to get client's real name and ID
+    const obterDadosCliente = new Promise((resolve) => {
         if (tipo_usuario === 'cliente') {
             db.get('SELECT nome FROM usuarios WHERE id = ?', [cliente_id], (err, row) => {
-                resolve(row ? row.nome : cliente);
+                resolve({ nomeFinal: row ? row.nome : cliente, idFinal: cliente_id });
             });
         } else {
-            resolve(cliente);
+            if (isBloqueio) {
+                resolve({ nomeFinal: cliente, idFinal: null });
+            } else {
+                // Tenta achar o cliente pelo nome para vincular o ID
+                db.get('SELECT id FROM usuarios WHERE nome LIKE ?', [cliente], (err, row) => {
+                    resolve({ nomeFinal: cliente, idFinal: row ? row.id : null });
+                });
+            }
         }
     });
 
-    obterNomeCliente.then((nomeRealCliente) => {
+    obterDadosCliente.then((dados) => {
+        const nomeRealCliente = dados.nomeFinal;
+        cliente_id = dados.idFinal;
+        
+        // VALIDAÇÃO DE HORÁRIO DE FUNCIONAMENTO
+        const reqDate = new Date(`${data}T12:00:00`);
+        if (reqDate.getDay() === 0) { // 0 é Domingo
+            return res.status(400).json({ error: 'A clínica não funciona aos domingos. Por favor, escolha outro dia.' });
+        }
+        
+        const startMins = toMinutes(horario);
+        const endMins = startMins + duracaoMinutos;
+        
+        if (startMins < 480 || startMins >= 1140 || endMins > 1200) { 
+            // 480 = 08:00, 1140 = 19:00 (último horário permitido para iniciar algo), 1200 = 20:00 (limite final estendido)
+            return res.status(400).json({ error: 'O agendamento deve estar dentro do horário de funcionamento (08:00 às 19:00).' });
+        }
+
+        // Validação: não permitir agendamentos/bloqueios no passado
+        const now = new Date();
+        const [y, m, d] = data.split('-').map(Number);
+        const reqDateLocal = new Date(y, m - 1, d, Math.floor(startMins / 60), startMins % 60);
+        if (reqDateLocal < now) {
+            return res.status(400).json({ error: 'Não é possível agendar ou bloquear um horário que já passou.' });
+        }
+
         // Validação de sobreposição de intervalos de tempo (substitui checagem simples de horário)
         const checkSql = `SELECT horario, duracao FROM agendamentos 
-                          WHERE profissional = ? AND data = ? AND status != 'cancelado'`;
+                          WHERE profissional = ? AND data = ? AND status IN ('confirmado', 'concluido')`;
 
         db.all(checkSql, [profissional, data], (err, rows) => {
             if (err) return res.status(500).json({ error: 'Erro na validação de horário.' });
@@ -388,82 +433,337 @@ app.post('/api/agendamentos', autenticar, (req, res) => {
                 });
             }
 
-            let finalValor = valor || 0.0;
-            let finalIsManutencao = isManutencao ? 1 : 0;
-
-            // REGRAS DE NEGÓCIO: Cílios (Laura Alencar)
-            if (profissional === 'Laura Alencar' && !isBloqueio) {
-                const historySql = `
-                    SELECT * FROM agendamentos 
-                    WHERE cliente_id = ? 
-                      AND profissional = 'Laura Alencar' 
-                      AND status != 'cancelado' 
-                      AND isBloqueio = 0
-                    ORDER BY data DESC, horario DESC
-                `;
-
-                db.all(historySql, [cliente_id], (err, historyRows) => {
-                    if (err) return res.status(500).json({ error: 'Erro ao buscar histórico de agendamentos.' });
-
-                    if (finalIsManutencao === 1) {
-                        if (servico.toLowerCase().includes('anime')) {
-                            return res.status(400).json({ error: 'Não é permitida manutenção para cílios do tipo Anime.' });
+            // REGRA DE NEGÓCIO: Cílios (Laura Alencar) — no máximo 1 por cliente por dia
+            const verificarEInserir = () => {
+                if (profissional === 'Laura Alencar' && !isBloqueio && cliente_id) {
+                    db.get(
+                        `SELECT id FROM agendamentos WHERE profissional = 'Laura Alencar' AND data = ? AND cliente_id = ? AND isBloqueio = 0 AND status NOT IN ('cancelado', 'recusado')`,
+                        [data, cliente_id],
+                        (err, row) => {
+                            if (row) {
+                                return res.status(400).json({ 
+                                    error: 'Não é possível agendar cílios mais de uma vez no mesmo dia. O procedimento dura em média 2h e não pode ser repetido.' 
+                                });
+                            }
+                            continuarInsercao();
                         }
-                        if (!historyRows || historyRows.length === 0) {
-                            return res.status(400).json({ error: 'Você precisa ter feito uma aplicação completa antes de agendar uma manutenção.' });
-                        }
-                        if (historyRows.length >= 2) {
-                            const ult1 = historyRows[0];
-                            const ult2 = historyRows[1];
-                            if (ult1.isManutencao === 1 && ult2.isManutencao === 1) {
-                                return res.status(400).json({ error: 'Não é permitido realizar mais de 2 manutenções seguidas. Por favor, agende uma nova aplicação completa.' });
+                    );
+                } else {
+                    continuarInsercao();
+                }
+            };
+
+            const continuarInsercao = () => {
+                let finalValor = valor || 0.0;
+                let finalIsManutencao = isManutencao ? 1 : 0;
+
+                // REGRAS DE NEGÓCIO: Cílios (Laura Alencar)
+                if (profissional === 'Laura Alencar' && !isBloqueio) {
+                    const historySql = `
+                        SELECT * FROM agendamentos 
+                        WHERE cliente_id = ? 
+                          AND profissional = 'Laura Alencar' 
+                          AND status != 'cancelado' 
+                          AND isBloqueio = 0
+                        ORDER BY data DESC, horario DESC
+                    `;
+
+                    db.all(historySql, [cliente_id], (err, historyRows) => {
+                        if (err) return res.status(500).json({ error: 'Erro ao buscar histórico de agendamentos.' });
+
+                        if (finalIsManutencao === 1) {
+                            if (servico.toLowerCase().includes('anime')) {
+                                return res.status(400).json({ error: 'Não é permitida manutenção para cílios do tipo Anime.' });
+                            }
+                            if (!historyRows || historyRows.length === 0) {
+                                return res.status(400).json({ error: 'Você precisa ter feito uma aplicação completa antes de agendar uma manutenção.' });
+                            }
+                            if (historyRows.length >= 2) {
+                                const ult1 = historyRows[0];
+                                const ult2 = historyRows[1];
+                                if (ult1.isManutencao === 1 && ult2.isManutencao === 1) {
+                                    return res.status(400).json({ error: 'Não é permitido realizar mais de 2 manutenções seguidas. Por favor, agende uma nova aplicação completa.' });
+                                }
+                            }
+                            const ultimoAtendimento = historyRows[0];
+                            const dataNovo = new Date(data);
+                            const dataUltimo = new Date(ultimoAtendimento.data);
+                            const diffDays = Math.ceil(Math.abs(dataNovo - dataUltimo) / (1000 * 60 * 60 * 24));
+                            if (diffDays <= 15) {
+                                finalValor = finalValor * 0.70;
                             }
                         }
-                        const ultimoAtendimento = historyRows[0];
-                        const dataNovo = new Date(data);
-                        const dataUltimo = new Date(ultimoAtendimento.data);
-                        const diffDays = Math.ceil(Math.abs(dataNovo - dataUltimo) / (1000 * 60 * 60 * 24));
-                        if (diffDays <= 15) {
-                            finalValor = finalValor * 0.70;
-                        }
-                    }
-                    
+                        
+                        executarInsercao(nomeRealCliente, finalValor, finalIsManutencao);
+                    });
+                } else {
                     executarInsercao(nomeRealCliente, finalValor, finalIsManutencao);
-                });
-            } else {
-                executarInsercao(nomeRealCliente, finalValor, finalIsManutencao);
-            }
+                }
 
-            function executarInsercao(nomeClienteReal, finalVal, finalManut) {
-                const insertSql = `
-                    INSERT INTO agendamentos (cliente, cliente_id, profissional, servico, data, horario, duracao, isBloqueio, isManutencao, valor) 
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                `;
-                db.run(
-                    insertSql, 
-                    [nomeClienteReal, cliente_id, profissional, servico, data, horario, duracaoMinutos, isBloqueio ? 1 : 0, finalManut, finalVal], 
-                    function(err) {
-                        if (err) return res.status(500).json({ error: 'Erro ao criar agendamento no banco de dados.' });
-                        res.status(201).json({ message: 'Agendamento criado com sucesso!', id: this.lastID });
+                function executarInsercao(nomeClienteReal, finalVal, finalManut) {
+                    if (tipo_usuario === 'cliente') {
+                        db.get('SELECT taxa_pendente FROM usuarios WHERE id = ?', [cliente_id], (err, row) => {
+                            let taxa = 0;
+                            if (row && row.taxa_pendente > 0) {
+                                taxa = row.taxa_pendente;
+                                finalVal += taxa;
+                                // Zera a taxa do usuario
+                                db.run('UPDATE usuarios SET taxa_pendente = 0 WHERE id = ?', [cliente_id]);
+                            }
+                            inserirAgendamento(nomeClienteReal, finalVal, finalManut);
+                        });
+                    } else {
+                        inserirAgendamento(nomeClienteReal, finalVal, finalManut);
                     }
-                );
-            }
+
+                    function inserirAgendamento(nomeCR, fVal, fManut) {
+                        const statusInicial = tipo_usuario === 'profissional' ? 'confirmado' : 'pendente';
+                        const insertSql = `
+                            INSERT INTO agendamentos (cliente, cliente_id, profissional, servico, data, horario, duracao, isBloqueio, isManutencao, valor, status) 
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        `;
+                        db.run(
+                            insertSql, 
+                            [nomeCR, cliente_id, profissional, servico, data, horario, duracaoMinutos, isBloqueio ? 1 : 0, fManut, fVal, statusInicial], 
+                            function(err) {
+                                if (err) return res.status(500).json({ error: 'Erro ao criar agendamento no banco de dados.' });
+                                res.status(201).json({ message: 'Agendamento criado com sucesso!', id: this.lastID });
+                            }
+                        );
+                    }
+                }
+            };
+
+            // Inicia o fluxo de validação e inserção
+            verificarEInserir();
         });
     });
 });
 
 // Atualizar status do agendamento — Protegido
 app.put('/api/agendamentos/:id/status', autenticar, (req, res) => {
-    const { status } = req.body;
+    const { status, observacoes, nota_cliente, cancelado_por, nova_data, novo_horario } = req.body;
     const { id } = req.params;
+    const usuarioLogado = req.usuario; // id, tipo_usuario
 
-    db.run('UPDATE agendamentos SET status = ? WHERE id = ?', [status, id], function(err) {
-        if (err) return res.status(500).json({ error: 'Erro ao atualizar status' });
-        res.json({ message: 'Status atualizado com sucesso' });
+    db.get('SELECT * FROM agendamentos WHERE id = ?', [id], (err, agendamento) => {
+        if (err) return res.status(500).json({ error: 'Erro ao buscar agendamento' });
+        if (!agendamento) return res.status(404).json({ error: 'Agendamento não encontrado' });
+
+        // Validações para concluir agendamento
+        if (status === 'concluido') {
+            if (agendamento.status === 'pendente') {
+                return res.status(400).json({ error: 'Não é possível concluir um agendamento pendente. Ele deve ser aceito/confirmado primeiro.' });
+            }
+            
+            const agendamentoDate = new Date(`${agendamento.data}T${agendamento.horario}:00`);
+            if (new Date() < agendamentoDate) {
+                return res.status(400).json({ error: 'O agendamento só pode ser concluído após o horário de início do serviço.' });
+            }
+        }
+
+        const prosseguirAtualizacao = () => {
+            // Log de WhatsApp fake para mudanças de status
+            let msgZap = '';
+
+            if (status === 'confirmado') {
+                msgZap = `[WhatsApp] Para a cliente ${agendamento.cliente}:\nOlá! O seu agendamento de ${agendamento.servico} com a profissional ${agendamento.profissional} (Dia ${agendamento.data} às ${agendamento.horario}) foi CONFIRMADO!`;
+                
+                db.get('SELECT telefone FROM usuarios WHERE id = ?', [agendamento.cliente_id], (err, user) => {
+                    if (user && user.telefone) enviarMensagemWhatsApp(user.telefone, msgZap);
+                });
+            } 
+            else if (status === 'recusado') {
+                msgZap = `[WhatsApp] Para a cliente ${agendamento.cliente}:\nOlá! Infelizmente, a sua solicitação de agendamento de ${agendamento.servico} com a profissional ${agendamento.profissional} (Dia ${agendamento.data} às ${agendamento.horario}) foi RECUSADA. Por favor, tente agendar outro horário pelo site.`;
+                
+                db.get('SELECT telefone FROM usuarios WHERE id = ?', [agendamento.cliente_id], (err, user) => {
+                    if (user && user.telefone) enviarMensagemWhatsApp(user.telefone, msgZap);
+                });
+            }
+            else if (status === 'cancelado' || status === 'nao_compareceu') {
+                const dataHoraAgendamento = new Date(`${agendamento.data}T${agendamento.horario}:00`);
+                const agora = new Date();
+                const horasDiferenca = (dataHoraAgendamento - agora) / (1000 * 60 * 60);
+
+                if (usuarioLogado.tipo_usuario === 'cliente') {
+                    msgZap = `[WhatsApp] Para a profissional ${agendamento.profissional}:\nA cliente ${agendamento.cliente} CANCELOU o agendamento de ${agendamento.servico} (Dia ${agendamento.data} às ${agendamento.horario}).`;
+
+                    db.get('SELECT telefone FROM profissionais WHERE nome = ?', [agendamento.profissional], (err, prof) => {
+                        if (prof && prof.telefone) enviarMensagemWhatsApp(prof.telefone, msgZap);
+                    });
+
+                    if (horasDiferenca < 72 || status === 'nao_compareceu') {
+                        if (agendamento.cliente_id) {
+                            db.run('UPDATE usuarios SET taxa_pendente = taxa_pendente + 50 WHERE id = ?', [agendamento.cliente_id]);
+                            console.log(`[TAXA] Aplicada taxa de R$ 50 para o cliente ID ${agendamento.cliente_id} (Cancelamento < 72h).`);
+                        }
+                    }
+                } else if (usuarioLogado.tipo_usuario === 'profissional') {
+                    msgZap = `[WhatsApp] Para a cliente ${agendamento.cliente}:\nOlá! A sua profissional ${agendamento.profissional} precisou CANCELAR o seu agendamento de ${agendamento.servico} (Dia ${agendamento.data} às ${agendamento.horario}). Por favor, entre em contato para reagendar.`;
+                    
+                    db.get('SELECT telefone FROM usuarios WHERE id = ?', [agendamento.cliente_id], (err, user) => {
+                        if (user && user.telefone) enviarMensagemWhatsApp(user.telefone, msgZap);
+                    });
+
+                    if (status === 'nao_compareceu' && agendamento.cliente_id) {
+                        db.run('UPDATE usuarios SET taxa_pendente = taxa_pendente + 50 WHERE id = ?', [agendamento.cliente_id]);
+                        console.log(`[TAXA] Aplicada taxa de R$ 50 para o cliente ID ${agendamento.cliente_id} ('Não compareceu').`);
+                    }
+                }
+            }
+
+            if (msgZap) {
+                console.log("\n==========================================");
+                console.log("             MENSAGEM WHATSAPP            ");
+                console.log("==========================================");
+                console.log(msgZap);
+                console.log("==========================================\n");
+
+                db.run(`INSERT INTO logs_notificacoes (usuario_id, agendamento_id, tipo_notificacao, mensagem, status) VALUES (?, ?, ?, ?, ?)`,
+                    [agendamento.cliente_id, agendamento.id, 'whatsapp', msgZap, 'enviado']
+                );
+            }
+
+            let updateSql = 'UPDATE agendamentos SET status = ? WHERE id = ?';
+            let params = [status, id];
+
+            if (status === 'concluido' && observacoes !== undefined) {
+                updateSql = 'UPDATE agendamentos SET status = ?, observacoes = ?, nota_cliente = ? WHERE id = ?';
+                params = [status, observacoes, nota_cliente || null, id];
+            } else if ((status === 'cancelado' || status === 'recusado') && cancelado_por !== undefined) {
+                updateSql = 'UPDATE agendamentos SET status = ?, cancelado_por = ? WHERE id = ?';
+                params = [status, cancelado_por, id];
+            } else if (status === 'confirmado' && (nova_data || novo_horario)) {
+                updateSql = 'UPDATE agendamentos SET status = ?, data = ?, horario = ? WHERE id = ?';
+                params = [status, agendamento.data, agendamento.horario, id];
+            }
+
+            db.run(updateSql, params, function(err) {
+                if (err) return res.status(500).json({ error: 'Erro ao atualizar status' });
+                res.json({ message: 'Status atualizado com sucesso' });
+            });
+        };
+
+        if (status === 'confirmado') {
+            if (nova_data) agendamento.data = nova_data;
+            if (novo_horario) agendamento.horario = novo_horario;
+
+            const checkSql = `SELECT horario, duracao FROM agendamentos 
+                              WHERE profissional = ? AND data = ? AND id != ? AND status IN ('confirmado', 'concluido')`;
+
+            db.all(checkSql, [agendamento.profissional, agendamento.data, id], (err, rows) => {
+                if (err) return res.status(500).json({ error: 'Erro na validação de horário.' });
+
+                const toMinutes = (hhmm) => {
+                    const [h, m] = hhmm.split(':').map(Number);
+                    return h * 60 + m;
+                };
+
+                const startNew = toMinutes(agendamento.horario);
+                const endNew = startNew + (agendamento.duracao || 30);
+
+                const sobreposicao = rows.find(r => {
+                    const startExist = toMinutes(r.horario);
+                    const endExist = startExist + (r.duracao || 30);
+                    return startNew < endExist && endNew > startExist;
+                });
+
+                if (sobreposicao) {
+                    return res.status(400).json({ 
+                        error: 'Não é possível confirmar! Já existe um agendamento confirmado neste mesmo horário.' 
+                    });
+                }
+                
+                prosseguirAtualizacao();
+            });
+        } else {
+            prosseguirAtualizacao();
+        }
     });
 });
 
-// 7. EXCLUSÃO DE CONTA (Direito ao Esquecimento - LGPD Art. 18) — Protegido
+// Cliente avalia o atendimento (dá nota para a profissional)
+app.put('/api/agendamentos/:id/avaliar', autenticar, (req, res) => {
+    const { nota_profissional } = req.body;
+    const { id } = req.params;
+
+    if (req.usuario.tipo_usuario !== 'cliente') {
+        return res.status(403).json({ error: 'Apenas clientes podem avaliar profissionais.' });
+    }
+
+    db.run('UPDATE agendamentos SET nota_profissional = ? WHERE id = ? AND status = "concluido"', [nota_profissional, id], function(err) {
+        if (err) return res.status(500).json({ error: 'Erro ao salvar avaliação' });
+        if (this.changes === 0) return res.status(400).json({ error: 'Agendamento não encontrado ou não concluído.' });
+        res.json({ message: 'Avaliação salva com sucesso' });
+    });
+});
+
+// Obter taxa_pendente do cliente
+app.get('/api/usuarios/:id/taxa', autenticar, (req, res) => {
+    const { id } = req.params;
+    if (parseInt(id) !== req.usuario.id) return res.status(403).json({ error: 'Proibido' });
+    db.get('SELECT taxa_pendente FROM usuarios WHERE id = ?', [id], (err, row) => {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json({ taxa_pendente: row ? row.taxa_pendente : 0 });
+    });
+});
+
+// 7. ATUALIZAÇÃO DE PERFIL — Protegido
+app.put('/api/usuarios/:id', autenticar, async (req, res) => {
+    const { id } = req.params;
+    const { nome, email, telefone, senha, foto_url, bio, especialidades } = req.body;
+    
+    console.log(`[PUT /api/usuarios/${id}] Recebido update para usuário ${req.usuario.id} (${req.usuario.tipo_usuario})`);
+    console.log(`Payload: nome=${nome}, email=${email}, foto_url length=${foto_url ? foto_url.length : 0}`);
+
+    if (parseInt(id) !== req.usuario.id) {
+        return res.status(403).json({ error: 'Você não tem permissão para alterar este perfil.' });
+    }
+
+    const isProfissional = req.usuario.tipo_usuario === 'profissional';
+    const tabela = isProfissional ? 'profissionais' : 'usuarios';
+
+    try {
+        let hash = null;
+        if (senha && senha.trim() !== '') {
+            hash = await bcrypt.hash(senha, 10);
+        }
+
+        if (isProfissional) {
+            if (hash) {
+                db.run(`UPDATE profissionais SET nome=?, email=?, telefone=?, foto_url=?, bio=?, especialidades=?, senha_hash=? WHERE id=?`, 
+                    [nome, email, telefone, foto_url, bio, especialidades, hash, id], function(err) {
+                    if (err) return res.status(500).json({ error: 'Erro ao atualizar perfil com nova senha.' });
+                    res.json({ message: 'Perfil atualizado com sucesso.' });
+                });
+            } else {
+                db.run(`UPDATE profissionais SET nome=?, email=?, telefone=?, foto_url=?, bio=?, especialidades=? WHERE id=?`, 
+                    [nome, email, telefone, foto_url, bio, especialidades, id], function(err) {
+                    if (err) return res.status(500).json({ error: 'Erro ao atualizar perfil.' });
+                    res.json({ message: 'Perfil atualizado com sucesso.' });
+                });
+            }
+        } else {
+            if (hash) {
+                db.run(`UPDATE usuarios SET nome=?, email=?, telefone=?, foto_url=?, senha_hash=? WHERE id=?`, 
+                    [nome, email, telefone, foto_url, hash, id], function(err) {
+                    if (err) return res.status(500).json({ error: 'Erro ao atualizar perfil com nova senha.' });
+                    res.json({ message: 'Perfil atualizado com sucesso.' });
+                });
+            } else {
+                db.run(`UPDATE usuarios SET nome=?, email=?, telefone=?, foto_url=? WHERE id=?`, 
+                    [nome, email, telefone, foto_url, id], function(err) {
+                    if (err) return res.status(500).json({ error: 'Erro ao atualizar perfil.' });
+                    res.json({ message: 'Perfil atualizado com sucesso.' });
+                });
+            }
+        }
+    } catch (error) {
+        res.status(500).json({ error: 'Erro interno do servidor.' });
+    }
+});
+
+// 8. EXCLUSÃO DE CONTA (Direito ao Esquecimento - LGPD Art. 18) — Protegido
 app.delete('/api/usuarios/:id', autenticar, (req, res) => {
     const { id } = req.params;
 

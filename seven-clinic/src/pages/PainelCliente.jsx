@@ -1,79 +1,10 @@
 import React, { useContext, useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AgendamentoContext } from '../context/AgendamentoContext';
+import { SERVICOS_POR_PROFISSIONAL as PROFISSIONAIS_SERVICOS } from '../data/servicos';
 import api from '../api';
 
 /* ─────────────────────────────────────────────────────────────────
-   CATÁLOGO FIXO DE PROFISSIONAIS, SERVIÇOS E DURAÇÕES
-   ───────────────────────────────────────────────────────────────── */
-const PROFISSIONAIS_SERVICOS = {
-    'Laura Alencar': {
-        especialidade: 'Cílios',
-        categorias: {
-            'Cílios': [
-                { nome: 'Classico',      preco: 220.0, duracao: 100, permiteManutencao: true  },
-                { nome: 'Volume light',  preco: 210.0, duracao: 100, permiteManutencao: true  },
-                { nome: 'Soft light',    preco: 175.0, duracao: 100, permiteManutencao: true  },
-                { nome: 'wet',           preco: 240.0, duracao: 100, permiteManutencao: true  },
-                { nome: 'anime',         preco: 250.0, duracao: 120, permiteManutencao: false },
-                { nome: 'soft fox',      preco: 175.0, duracao: 100, permiteManutencao: true  },
-                { nome: 'delineado',     preco: 240.0, duracao: 100, permiteManutencao: true  },
-                { nome: 'wispy',         preco: 250.0, duracao: 100, permiteManutencao: true  },
-                { nome: 'fox eyes',      preco: 230.0, duracao: 100, permiteManutencao: true  },
-                { nome: 'cat eyes',      preco: 200.0, duracao: 100, permiteManutencao: true  },
-            ]
-        }
-    },
-    'Mayara Vespasiano': {
-        especialidade: 'Sobrancelha, Lábios e Depilação',
-        categorias: {
-            'Sobrancelha': [
-                { nome: 'Design personalizado', preco: 45.0,  duracao: 30  },
-                { nome: 'Design + coloração',   preco: 79.0,  duracao: 45  },
-                { nome: 'Design + henna',       preco: 69.0,  duracao: 45  },
-                { nome: 'Light brows',          preco: 120.0, duracao: 60  },
-                { nome: 'Brow lamination',      preco: 195.0, duracao: 60  },
-                { nome: 'Micropigmentação',     preco: 690.0, duracao: 120 },
-            ],
-            'Lábios': [
-                { nome: 'Lip blush',               preco: 230.0, duracao: 120 },
-                { nome: 'Protocolo de hidratação', preco: 120.0, duracao: 45  },
-                { nome: 'Microlabial',             preco: 690.0, duracao: 120 },
-            ],
-            'Adicionais': [
-                { nome: 'Buço',            preco: 20.0, duracao: 15 },
-                { nome: 'Epilação facial', preco: 70.0, duracao: 45 },
-            ]
-        }
-    },
-    'Ana Paula': {
-        especialidade: 'Unhas',
-        categorias: {
-            'Aplicação': [
-                { nome: 'Alongamento em Molde F1',   opcoes: { 'Natural': 190.0, 'Decorada': 220.0 }, duracao: 120 },
-                { nome: 'Alongamento em Soft Gel',   opcoes: { 'Natural': 130.0, 'Decorada': 160.0 }, duracao: 90  },
-                { nome: 'Banho de gel em molde F1',  opcoes: { 'Natural': 90.0,  'Decorada': 120.0 }, duracao: 90  },
-                { nome: 'Blindagem estrutural',      opcoes: { 'Natural': 90.0,  'Decorada': 110.0 }, duracao: 60  },
-                { nome: 'Banho de gel fiber',        opcoes: { 'Natural': 150.0, 'Decorada': 180.0 }, duracao: 90  },
-            ],
-            'Manutenção': [
-                { nome: 'Manutenção em Molde F1',      opcoes: { 'Natural': 120.0, 'Decorada': 150.0 }, duracao: 90 },
-                { nome: 'Manutenção em Soft Gel',      opcoes: { 'Natural': 100.0, 'Decorada': 130.0 }, duracao: 90 },
-                { nome: 'Manutenção Blindagem fiber',  opcoes: { 'Natural': 100.0, 'Decorada': 130.0 }, duracao: 90 },
-            ],
-            'Demais Serviços': [
-                { nome: 'Esmaltação em gel (blindagem)',     opcoes: { 'Esmaltada': 80.0, 'Decorada': 100.0 }, duracao: 60 },
-                { nome: 'Reconstrução e alinhamento',       preco: 20.0,  duracao: 30 },
-                { nome: 'Remoção de alongamento',           preco: 70.0,  duracao: 45 },
-                { nome: 'Reposição unha quebrada',          preco: 10.0,  duracao: 20 },
-                { nome: 'Remoção de esmaltação',            preco: 40.0,  duracao: 30 },
-                { nome: 'Remoção de blindagem',             preco: 60.0,  duracao: 45 },
-                { nome: 'Pedicure',                         opcoes: { 'Esmaltada': 80.0, 'Decorada': 100.0 }, duracao: 60 },
-                { nome: 'Adicional pedraria',               preco: 10.0,  duracao: 15 },
-                { nome: 'Cuticulagem com tesoura',          preco: 20.0,  duracao: 30 },
-            ]
-        }
-    }
 };
 
 /* ─────────────────────────────────────────────────────────────────
@@ -97,12 +28,30 @@ for (let m = 480; m < 19 * 60; m += 30) ALL_SLOTS.push(minutesToHHMM(m));
 const formatDate = (dateStr) =>
     new Date(dateStr + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
 
+const getMinDate = () => {
+    const now = new Date();
+    const currentMins = now.getHours() * 60 + now.getMinutes();
+    
+    if (currentMins >= 1110) {
+        now.setDate(now.getDate() + 1);
+    }
+    
+    if (now.getDay() === 0) {
+        now.setDate(now.getDate() + 1);
+    }
+    
+    const yyyy = now.getFullYear();
+    const mm = String(now.getMonth() + 1).padStart(2, '0');
+    const dd = String(now.getDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
+};
+
 /* ─────────────────────────────────────────────────────────────────
    COMPONENTE PRINCIPAL
    ───────────────────────────────────────────────────────────────── */
 const PainelCliente = () => {
     const navigate = useNavigate();
-    const { agendamentos, adicionarAgendamento, cancelarAgendamento, buscarAgendamentos } = useContext(AgendamentoContext);
+    const { agendamentos, adicionarAgendamento, cancelarAgendamento, buscarAgendamentos, avaliarAtendimento } = useContext(AgendamentoContext);
 
     useEffect(() => {
         buscarAgendamentos();
@@ -113,9 +62,10 @@ const PainelCliente = () => {
     );
     const token = localStorage.getItem('authToken') || sessionStorage.getItem('authToken') || '';
 
-    /* ── Modais ── */
+    /* ── Modais e Menu ── */
     const [isModalOpen, setIsModalOpen]   = useState(false);
     const [modalStep, setModalStep]       = useState('form'); // 'form' | 'sacola'
+    const [menuAberto, setMenuAberto]     = useState(false);
 
     /* ── Seleção de serviço atual ── */
     const [profissional,       setProfissional]       = useState('Laura Alencar');
@@ -123,7 +73,7 @@ const PainelCliente = () => {
     const [servico,            setServico]            = useState(PROFISSIONAIS_SERVICOS['Laura Alencar'].categorias['Cílios'][0]);
     const [estilo,             setEstilo]             = useState('');
     const [isManutencao,       setIsManutencao]       = useState(false);
-    const [data,               setData]               = useState(new Date().toISOString().split('T')[0]);
+    const [data,               setData]               = useState(getMinDate());
     const [horario,            setHorario]            = useState('');
 
     /* ── Sacola de agendamentos ── */
@@ -134,7 +84,23 @@ const PainelCliente = () => {
 
     /* ── Mensagens de erro/aviso ── */
     const [erroModal, setErroModal] = useState('');
+
+    const [isAvaliarModalOpen, setIsAvaliarModalOpen] = useState(false);
+    const [agendamentoAvaliar, setAgendamentoAvaliar] = useState(null);
+    const [notaProfissional, setNotaProfissional] = useState(5);
     const [enviando,  setEnviando]  = useState(false);
+    const [taxaPendente, setTaxaPendente] = useState(0);
+
+    /* ─── Busca taxa pendente ─── */
+    useEffect(() => {
+        if (userLogado.id) {
+            api.get(`/api/usuarios/${userLogado.id}/taxa`)
+                .then(res => {
+                    if (res.data.taxa_pendente) setTaxaPendente(res.data.taxa_pendente);
+                })
+                .catch(err => console.error("Erro ao buscar taxa pendente:", err));
+        }
+    }, [userLogado.id]);
 
     /* ─── Busca slots ocupados no backend ao mudar profissional ou data ─── */
     useEffect(() => {
@@ -163,6 +129,19 @@ const PainelCliente = () => {
     const isSlotBloqueado = useCallback((slot) => {
         const bloqueios = calcularBloqueios();
         const slotStart = toMinutes(slot);
+        
+        // Se a data selecionada for hoje, bloqueia horários que já passaram
+        const now = new Date();
+        const yyyy = now.getFullYear();
+        const mm = String(now.getMonth() + 1).padStart(2, '0');
+        const dd = String(now.getDate()).padStart(2, '0');
+        const todayStr = `${yyyy}-${mm}-${dd}`;
+        
+        if (data === todayStr) {
+            const currentMins = now.getHours() * 60 + now.getMinutes();
+            if (slotStart <= currentMins) return true;
+        }
+
         const duracaoAtual = servico?.duracao || 30;
         const slotEnd = slotStart + duracaoAtual;
         return bloqueios.some(b => {
@@ -170,7 +149,7 @@ const PainelCliente = () => {
             const bEnd   = bStart + (b.duracao || 30);
             return slotStart < bEnd && slotEnd > bStart;
         });
-    }, [calcularBloqueios, servico]);
+    }, [calcularBloqueios, servico, data]);
 
     /* ─── Calcula o slot sugerido: primeiro disponível após o término do último agendamento na data ─── */
     const calcularSlotSugerido = useCallback(() => {
@@ -260,6 +239,40 @@ const PainelCliente = () => {
         if (!horario) { setErroModal('Selecione um horário.'); return; }
         if (!data)    { setErroModal('Selecione uma data.');   return; }
 
+        const checkDate = new Date(`${data}T12:00:00`);
+        if (checkDate.getDay() === 0) {
+            setErroModal('A clínica não funciona aos domingos. Por favor, escolha outro dia.');
+            return;
+        }
+
+        const startMins = toMinutes(horario);
+        if (startMins < 480 || startMins >= 1140) {
+            setErroModal('O agendamento deve estar dentro do horário de funcionamento (08:00 às 19:00).');
+            return;
+        }
+
+        // REGRA DE NEGÓCIO: Cílios (Laura Alencar) só pode ser marcado UMA VEZ por dia
+        if (profissional === 'Laura Alencar') {
+            // Verifica na sacola se já tem cílios nesse dia
+            const ciliosNaSacola = sacola.some(i => i.profissional === 'Laura Alencar' && i.data === data);
+            if (ciliosNaSacola) {
+                setErroModal('Não é possível agendar cílios mais de uma vez no mesmo dia. O procedimento dura em média 2h e não pode ser repetido.');
+                return;
+            }
+            // Verifica nos agendamentos existentes do banco
+            const ciliosNoHistorico = agendamentos.some(ag =>
+                ag.profissional === 'Laura Alencar' &&
+                ag.data === data &&
+                ag.cliente_id === userLogado.id &&
+                !ag.isBloqueio &&
+                ag.status !== 'cancelado' && ag.status !== 'recusado'
+            );
+            if (ciliosNoHistorico) {
+                setErroModal('Você já possui um agendamento de cílios neste dia. O procedimento não pode ser feito duas vezes no mesmo dia.');
+                return;
+            }
+        }
+
         // Verificar conflito dentro da própria sacola
         const itensMesmoProfData = sacola.filter(i => i.profissional === profissional && i.data === data);
         const startNew = toMinutes(horario);
@@ -338,6 +351,7 @@ const PainelCliente = () => {
         if (erros.length > 0) {
             setErroModal('Alguns agendamentos falharam:\n' + erros.join('\n'));
         } else {
+            setTaxaPendente(0); // A taxa foi cobrada no backend
             setSacola([]);
             setIsModalOpen(false);
             setModalStep('form');
@@ -352,21 +366,31 @@ const PainelCliente = () => {
         setSacola([]);
     };
 
+    const handleAbrirAvaliacao = (ag) => {
+        setAgendamentoAvaliar(ag);
+        setNotaProfissional(5);
+        setIsAvaliarModalOpen(true);
+    };
+
+    const submitAvaliacao = (e) => {
+        e.preventDefault();
+        if (agendamentoAvaliar) {
+            avaliarAtendimento(agendamentoAvaliar.id, notaProfissional);
+        }
+        setIsAvaliarModalOpen(false);
+    };
+
     /* ─── Dados do painel ─── */
     const meusAgendamentos = agendamentos.filter(ag =>
-        !ag.isBloqueio && (
-            ag.cliente_id === userLogado.id ||
-            ag.cliente === userLogado.nome ||
-            ag.cliente === 'Você'
-        )
+        !ag.isBloqueio && ag.cliente_id === userLogado.id
     );
-    const pendentes = meusAgendamentos.filter(ag => ag.status === 'pendente')
+    const pendentes = meusAgendamentos.filter(ag => ag.status === 'pendente' || ag.status === 'confirmado')
         .sort((a, b) => (a.data + a.horario).localeCompare(b.data + b.horario));
     const proximo = pendentes[0] || null;
 
     const handleCancelar = (id) => {
         if (window.confirm('Tem certeza que deseja cancelar este agendamento?'))
-            cancelarAgendamento(id);
+            cancelarAgendamento(id, 'Cliente');
     };
 
     const totalSacola = sacola.reduce((s, i) => s + i.valor, 0);
@@ -379,12 +403,17 @@ const PainelCliente = () => {
             <aside className="sidebar">
                 <div className="sidebar-logo">
                     <h2>SEVEN <span className="logo-sub">CLINIC</span></h2>
+                    <button className="menu-hamburger dash-ham" onClick={() => setMenuAberto(!menuAberto)} aria-label="Menu">
+                        <span className={menuAberto ? 'ham-line open' : 'ham-line'}></span>
+                        <span className={menuAberto ? 'ham-line open' : 'ham-line'}></span>
+                        <span className={menuAberto ? 'ham-line open' : 'ham-line'}></span>
+                    </button>
                 </div>
-                <nav className="sidebar-nav">
+                <nav className={`sidebar-nav ${menuAberto ? 'menu-open' : ''}`}>
                     <ul>
-                        <li className="active"><a href="#">Meus Agendamentos</a></li>
-                        <li><a href="#" onClick={e => { e.preventDefault(); setIsModalOpen(true); }}>Novo Agendamento</a></li>
-                        <li><a href="#" onClick={e => { e.preventDefault(); navigate('/perfil-cliente'); }}>Perfil</a></li>
+                        <li className="active"><a href="#" onClick={() => setMenuAberto(false)}>Meus Agendamentos</a></li>
+                        <li><a href="#" onClick={e => { e.preventDefault(); setIsModalOpen(true); setMenuAberto(false); }}>Novo Agendamento</a></li>
+                        <li><a href="#" onClick={e => { e.preventDefault(); navigate('/perfil-cliente'); setMenuAberto(false); }}>Perfil</a></li>
                         <li><a href="#" onClick={(e) => { 
                             e.preventDefault(); 
                             localStorage.removeItem('userLogado'); 
@@ -413,6 +442,7 @@ const PainelCliente = () => {
                                 <p><strong>Data:</strong> {formatDate(proximo.data)}</p>
                                 <p><strong>Horário:</strong> {proximo.horario}</p>
                                 <p><strong>Profissional:</strong> {proximo.profissional}</p>
+                                <p><strong>Status:</strong> <span style={{color: proximo.status === 'pendente' ? '#f39c12' : '#27ae60', fontWeight: 'bold'}}>{proximo.status === 'pendente' ? 'Aguardando Confirmação' : 'Confirmado'}</span></p>
                                 {proximo.valor > 0 && <p><strong>Valor:</strong> R$ {proximo.valor.toFixed(2)}</p>}
                             </div>
                             <button className="btn-secondary" onClick={() => handleCancelar(proximo.id)}>Cancelar Agendamento</button>
@@ -453,11 +483,14 @@ const PainelCliente = () => {
                                     <td>{ag.valor ? `R$ ${ag.valor.toFixed(2)}` : 'R$ 0,00'}</td>
                                     <td>
                                         <span className={`status-badge status-${ag.status}`}>
-                                            {ag.status === 'concluido' ? 'Concluído' : ag.status === 'cancelado' ? 'Cancelado' : 'Pendente'}
+                                            {ag.status === 'concluido' ? 'Concluído' : 
+                                             ag.status === 'cancelado' ? `Cancelado${ag.cancelado_por ? ` (por ${ag.cancelado_por})` : ''}` : 
+                                             ag.status === 'recusado' ? `Recusado${ag.cancelado_por ? ` (por ${ag.cancelado_por})` : ''}` :
+                                             ag.status === 'confirmado' ? 'Confirmado' : 'Aguardando'}
                                         </span>
                                     </td>
                                     <td>
-                                        {ag.status === 'pendente' && (
+                                        {(ag.status === 'pendente' || ag.status === 'confirmado') && (
                                             <button
                                                 className="btn-secondary"
                                                 style={{ padding: '4px 10px', fontSize: '0.8rem' }}
@@ -465,6 +498,20 @@ const PainelCliente = () => {
                                             >
                                                 Cancelar
                                             </button>
+                                        )}
+                                        {ag.status === 'concluido' && !ag.nota_profissional && (
+                                            <button
+                                                className="btn-primary"
+                                                style={{ padding: '4px 10px', fontSize: '0.8rem', background: '#f39c12', borderColor: '#f39c12', marginLeft: '5px' }}
+                                                onClick={() => handleAbrirAvaliacao(ag)}
+                                            >
+                                                Avaliar
+                                            </button>
+                                        )}
+                                        {ag.status === 'concluido' && ag.nota_profissional && (
+                                            <span style={{color: '#f1c40f', fontSize: '1rem', marginLeft: '5px'}}>
+                                                {'★'.repeat(ag.nota_profissional)}{'☆'.repeat(5 - ag.nota_profissional)}
+                                            </span>
                                         )}
                                     </td>
                                 </tr>
@@ -660,8 +707,18 @@ const PainelCliente = () => {
                                                     📅 {formatDate(data)} às {horario} → {minutesToHHMM(toMinutes(horario) + (servico.duracao || 30))}
                                                 </p>
                                             )}
+                                            {taxaPendente > 0 && (
+                                                <div style={{ marginTop: '10px', padding: '8px', background: '#ffebee', borderRadius: '4px', borderLeft: '4px solid #f44336' }}>
+                                                    <p style={{ margin: 0, fontSize: '0.75rem', color: '#c0392b', fontWeight: 'bold' }}>
+                                                        ⚠️ Taxa Pendente de Cancelamento Tardio / Não Comparecimento: R$ {taxaPendente.toFixed(2)}
+                                                    </p>
+                                                    <p style={{ margin: '4px 0 0', fontSize: '0.7rem', color: '#666' }}>
+                                                        Este valor será somado ao valor final deste serviço, referente a um cancelamento passado.
+                                                    </p>
+                                                </div>
+                                            )}
                                             <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid #ebdcd5', paddingTop: '8px', marginTop: '10px' }}>
-                                                <span style={{ fontWeight: '600', fontSize: '0.9rem' }}>Valor:</span>
+                                                <span style={{ fontWeight: '600', fontSize: '0.9rem' }}>Valor do Serviço:</span>
                                                 <span style={{ fontWeight: '800', fontSize: '1.2rem', color: '#654b42' }}>R$ {obterPreco().toFixed(2)}</span>
                                             </div>
                                         </div>
@@ -700,8 +757,24 @@ const PainelCliente = () => {
                                             <input
                                                 type="date"
                                                 value={data}
-                                                min={new Date().toISOString().split('T')[0]}
-                                                onChange={e => { setData(e.target.value); setHorario(''); }}
+                                                min={getMinDate()}
+                                                onChange={e => {
+                                                    const today = getMinDate();
+                                                    let selected = e.target.value;
+                                                    if (selected && selected < today) {
+                                                        selected = today;
+                                                    }
+                                                    if (selected) {
+                                                        const dt = new Date(`${selected}T12:00:00`);
+                                                        if (dt.getDay() === 0) {
+                                                            alert('A clínica não funciona aos domingos. Por favor, escolha outro dia.');
+                                                            e.target.value = data;
+                                                            return;
+                                                        }
+                                                    }
+                                                    setData(selected);
+                                                    setHorario('');
+                                                }}
                                             />
                                         </div>
 
@@ -842,6 +915,36 @@ const PainelCliente = () => {
                                     )}
                                 </div>
                             )}
+                        </div>
+                    </div>
+                )}
+
+                {/* MODAL AVALIAR ATENDIMENTO */}
+                {isAvaliarModalOpen && (
+                    <div className="modal-overlay">
+                        <div className="modal-content" style={{maxWidth: '400px'}}>
+                            <h2>Avaliar Atendimento</h2>
+                            <p style={{color: '#666', marginBottom: '15px'}}>Como foi o atendimento com {agendamentoAvaliar?.profissional}?</p>
+                            
+                            <form onSubmit={submitAvaliacao} style={{display: 'flex', flexDirection: 'column', gap: '15px', alignItems: 'center'}}>
+                                <div style={{display: 'flex', gap: '10px', fontSize: '2.5rem', cursor: 'pointer'}}>
+                                    {[1, 2, 3, 4, 5].map(star => (
+                                        <span 
+                                            key={star} 
+                                            onClick={() => setNotaProfissional(star)} 
+                                            style={{color: star <= notaProfissional ? '#f1c40f' : '#ccc'}}
+                                        >
+                                            ★
+                                        </span>
+                                    ))}
+                                </div>
+                                <p style={{fontSize: '0.9rem', color: '#666'}}>{notaProfissional} Estrelas</p>
+                                
+                                <div className="modal-actions" style={{width: '100%', marginTop: '10px'}}>
+                                    <button type="button" className="btn-secondary" onClick={() => setIsAvaliarModalOpen(false)}>Cancelar</button>
+                                    <button type="submit" className="btn-success">Enviar Avaliação</button>
+                                </div>
+                            </form>
                         </div>
                     </div>
                 )}

@@ -8,6 +8,7 @@ import PainelCliente from './pages/PainelCliente';
 import PainelFuncionaria from './pages/PainelFuncionaria';
 import PerfilCliente from './pages/PerfilCliente';
 import PerfilFuncionaria from './pages/PerfilFuncionaria';
+import DashboardFuncionaria from './pages/DashboardFuncionaria';
 import MeusClientes from './pages/MeusClientes';
 import RedefinirSenha from './pages/RedefinirSenha';
 import PoliticaPrivacidade from './pages/PoliticaPrivacidade';
@@ -29,6 +30,7 @@ function App() {
           <Route path="/painel-funcionaria" element={<ProtectedRoute><PainelFuncionaria /></ProtectedRoute>} />
           <Route path="/perfil-cliente" element={<ProtectedRoute><PerfilCliente /></ProtectedRoute>} />
           <Route path="/perfil-funcionaria" element={<ProtectedRoute><PerfilFuncionaria /></ProtectedRoute>} />
+          <Route path="/dashboard-funcionaria" element={<ProtectedRoute><DashboardFuncionaria /></ProtectedRoute>} />
           <Route path="/meus-clientes" element={<ProtectedRoute><MeusClientes /></ProtectedRoute>} />
         </Routes>
       </BrowserRouter>

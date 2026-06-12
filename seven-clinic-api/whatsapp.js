@@ -71,12 +71,30 @@ async function enviarMensagemWhatsApp(telefone, mensagem) {
         return false;
     }
     try {
-        const numero = formatarNumeroWhatsApp(telefone);
-        await whatsappClient.sendMessage(numero, mensagem);
-        console.log('[WHATSAPP] ✅ Mensagem enviada para:', telefone);
-        return true;
+        const chatId = formatarNumeroWhatsApp(telefone);
+        
+        try {
+            // Tenta enviar com o número exato fornecido
+            await whatsappClient.sendMessage(chatId, mensagem);
+            console.log('[WHATSAPP] ✅ Mensagem enviada para:', telefone);
+            return true;
+        } catch (e) {
+            // Se der erro de LID, tenta remover o dígito 9 (Comum no PR - DDD 41)
+            if (chatId.startsWith('55') && chatId.length === 18) {
+                const ddd = chatId.substring(2, 4);
+                const restoSemNove = chatId.substring(5); // Remove o primeiro '9' após o DDD
+                const novoChatId = `55${ddd}${restoSemNove}`;
+                
+                console.log(`[WHATSAPP] Tentando enviar sem o dígito 9: ${novoChatId}...`);
+                await whatsappClient.sendMessage(novoChatId, mensagem);
+                console.log('[WHATSAPP] ✅ Mensagem enviada (sem o 9) para:', telefone);
+                return true;
+            } else {
+                throw e; // Repassa o erro se não for caso de tirar o 9
+            }
+        }
     } catch (err) {
-        console.error('[WHATSAPP] ❌ Erro ao enviar para', telefone, ':', err.message);
+        console.error('[WHATSAPP] ❌ Erro final ao enviar para', telefone, ':', err.message);
         return false;
     }
 }

@@ -7,19 +7,58 @@ const PerfilFuncionaria = () => {
     // Referência para o input de arquivo oculto
     const fileInputRef = useRef(null);
 
-    // Estados locais para simular os campos do perfil profissional
-    const [nome, setNome] = useState('Você (Profissional)');
-    const [fotoPerfil, setFotoPerfil] = useState(null); // Estado para a imagem de perfil
-    const [email, setEmail] = useState('profissional@sevenclinic.com');
-    const [telefone, setTelefone] = useState('(41) 98888-8888');
-    const [senha, setSenha] = useState('');
-    const [bio, setBio] = useState('Especialista em Cílios e Design de Sobrancelha com mais de 5 anos de experiência em visagismo facial.');
-    const [especialidades, setEspecialidades] = useState('Cílios Volume Brasileiro, Design de Sobrancelha');
+    const userLogado = JSON.parse(localStorage.getItem('userLogado') || sessionStorage.getItem('userLogado') || '{}');
 
-    const handleSalvar = (e) => {
+    // Estados locais para os campos do perfil profissional
+    const [nome, setNome] = useState(userLogado.nome || 'Você (Profissional)');
+    const [fotoPerfil, setFotoPerfil] = useState(userLogado.foto_url || null);
+    const [email, setEmail] = useState(userLogado.email || '');
+    const [telefone, setTelefone] = useState(userLogado.telefone || '');
+    const [senha, setSenha] = useState('');
+    const [mostrarSenha, setMostrarSenha] = useState(false);
+    
+    // Bio e Especialidades (agora usando dados reais ou defaults se vazio)
+    const [bio, setBio] = useState(userLogado.bio || 'Especialista com mais de 5 anos de experiência.');
+    const [novaEspecialidade, setNovaEspecialidade] = useState('');
+    const [especialidades, setEspecialidades] = useState(() => {
+        if (userLogado.especialidades) {
+            return userLogado.especialidades.split(',').map(s => s.trim()).filter(Boolean);
+        }
+        return ['Cílios', 'Design de Sobrancelha'];
+    });
+    
+    const [menuAberto, setMenuAberto] = useState(false);
+
+    const handleSalvar = async (e) => {
         e.preventDefault();
-        alert('Perfil profissional atualizado com sucesso!');
-        setSenha(''); // Limpa a senha por segurança após salvar
+        try {
+            const body = {
+                nome,
+                email,
+                telefone,
+                senha,
+                foto_url: fotoPerfil,
+                bio,
+                especialidades: especialidades.join(', ')
+            };
+
+            // Using the same endpoint as clients for now, since it handles both based on user type
+            const { default: api } = await import('../api');
+            await api.put(`/api/usuarios/${userLogado.id}`, body);
+
+            // Atualiza sessão
+            const newUserLogado = { ...userLogado, nome, email, telefone, foto_url: fotoPerfil, bio, especialidades: especialidades.join(', ') };
+            if (localStorage.getItem('userLogado')) {
+                localStorage.setItem('userLogado', JSON.stringify(newUserLogado));
+            } else {
+                sessionStorage.setItem('userLogado', JSON.stringify(newUserLogado));
+            }
+
+            alert('Perfil profissional atualizado com sucesso!');
+            setSenha('');
+        } catch (error) {
+            alert(error.response?.data?.error || 'Erro ao atualizar o perfil. Tente novamente.');
+        }
     };
 
     const handleFotoClick = () => {
@@ -30,8 +69,25 @@ const PerfilFuncionaria = () => {
         const file = e.target.files[0];
         if (file) {
             const reader = new FileReader();
-            reader.onloadend = () => {
-                setFotoPerfil(reader.result);
+            reader.onloadend = async () => {
+                const base64Foto = reader.result;
+                setFotoPerfil(base64Foto);
+                
+                // Salvar automaticamente a foto no banco de dados
+                try {
+                    const body = { nome, email, telefone, foto_url: base64Foto };
+                    const { default: api } = await import('../api');
+                    await api.put(`/api/usuarios/${userLogado.id}`, body);
+                    
+                    const newUserLogado = { ...userLogado, foto_url: base64Foto };
+                    if (localStorage.getItem('userLogado')) {
+                        localStorage.setItem('userLogado', JSON.stringify(newUserLogado));
+                    } else {
+                        sessionStorage.setItem('userLogado', JSON.stringify(newUserLogado));
+                    }
+                } catch (error) {
+                    alert('Aviso: A foto foi alterada na tela, mas houve um erro ao salvar no servidor.');
+                }
             };
             reader.readAsDataURL(file);
         }
@@ -42,12 +98,18 @@ const PerfilFuncionaria = () => {
             <aside className="sidebar">
                 <div className="sidebar-logo">
                     <h2>SEVEN <span className="logo-sub">CLINIC</span></h2>
+                    <button className="menu-hamburger dash-ham" onClick={() => setMenuAberto(!menuAberto)} aria-label="Menu">
+                        <span className={menuAberto ? 'ham-line open' : 'ham-line'}></span>
+                        <span className={menuAberto ? 'ham-line open' : 'ham-line'}></span>
+                        <span className={menuAberto ? 'ham-line open' : 'ham-line'}></span>
+                    </button>
                 </div>
-                <nav className="sidebar-nav">
+                <nav className={`sidebar-nav ${menuAberto ? 'menu-open' : ''}`}>
                     <ul>
-                        <li><a href="#" onClick={(e) => { e.preventDefault(); navigate('/painel-funcionaria'); }}>Agenda do Dia</a></li>
-                        <li><a href="#" onClick={(e) => { e.preventDefault(); navigate('/meus-clientes'); }}>Meus Clientes</a></li>
-                        <li className="active"><a href="#">Perfil Profissional</a></li>
+                        <li><a href="#" onClick={(e) => { e.preventDefault(); setMenuAberto(false); navigate('/painel-funcionaria'); }}>Agenda do Dia</a></li>
+                        <li><a href="#" onClick={(e) => { e.preventDefault(); setMenuAberto(false); navigate('/dashboard-funcionaria'); }}>Painel de Controle</a></li>
+                        <li><a href="#" onClick={(e) => { e.preventDefault(); setMenuAberto(false); navigate('/meus-clientes'); }}>Meus Clientes</a></li>
+                        <li className="active"><a href="#" onClick={() => setMenuAberto(false)}>Perfil Profissional</a></li>
                         <li><a href="#" onClick={(e) => { 
                             e.preventDefault(); 
                             localStorage.removeItem('userLogado'); 
@@ -85,7 +147,7 @@ const PerfilFuncionaria = () => {
                                     accept="image/*" 
                                     style={{ display: 'none' }} 
                                 />
-                                <button type="button" className="btn-secondary btn-small" style={{marginTop: '15px'}} onClick={handleFotoClick}>Atualizar Foto</button>
+                                <button type="button" className="btn-secondary btn-small" style={{marginTop: '15px'}} onClick={handleFotoClick}>Trocar Foto</button>
                             </div>
 
                             {/* Lado Direito: Formulário */}
@@ -94,8 +156,13 @@ const PerfilFuncionaria = () => {
                                     <h3 style={{marginBottom: '20px', fontWeight: '500'}}>Dados Pessoais</h3>
                                     
                                     <div className="input-group">
-                                        <label>Nome / Como deseja ser chamada</label>
-                                        <input type="text" value={nome} onChange={(e) => setNome(e.target.value)} required />
+                                        <label>Nome / Como deseja ser chamada (Não pode ser alterado)</label>
+                                        <input 
+                                            type="text" 
+                                            value={nome} 
+                                            readOnly 
+                                            style={{ backgroundColor: '#f0f0f0', color: '#666', cursor: 'not-allowed' }}
+                                        />
                                     </div>
                                     
                                     <div style={{display: 'flex', gap: '15px'}}>
@@ -112,8 +179,60 @@ const PerfilFuncionaria = () => {
                                     <h3 style={{marginTop: '20px', marginBottom: '20px', fontWeight: '500'}}>Perfil Público</h3>
                                     
                                     <div className="input-group">
-                                        <label>Especialidades (separadas por vírgula)</label>
-                                        <input type="text" value={especialidades} onChange={(e) => setEspecialidades(e.target.value)} required />
+                                        <label>Especialidades</label>
+                                        <div style={{ display: 'flex', gap: '10px', marginBottom: '10px' }}>
+                                            <input 
+                                                type="text" 
+                                                value={novaEspecialidade} 
+                                                onChange={(e) => setNovaEspecialidade(e.target.value)} 
+                                                placeholder="Digite uma especialidade"
+                                                onKeyDown={(e) => {
+                                                    if (e.key === 'Enter') {
+                                                        e.preventDefault();
+                                                        if (novaEspecialidade.trim()) {
+                                                            setEspecialidades([...especialidades, novaEspecialidade.trim()]);
+                                                            setNovaEspecialidade('');
+                                                        }
+                                                    }
+                                                }}
+                                            />
+                                            <button 
+                                                type="button" 
+                                                className="btn-secondary" 
+                                                style={{ width: 'auto', padding: '0 20px', borderRadius: '4px' }}
+                                                onClick={() => {
+                                                    if (novaEspecialidade.trim()) {
+                                                        setEspecialidades([...especialidades, novaEspecialidade.trim()]);
+                                                        setNovaEspecialidade('');
+                                                    }
+                                                }}
+                                            >
+                                                Adicionar
+                                            </button>
+                                        </div>
+                                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                                            {especialidades.map((esp, idx) => (
+                                                <div key={idx} style={{ 
+                                                    backgroundColor: '#eaddd7', 
+                                                    color: '#654b42', 
+                                                    padding: '5px 12px', 
+                                                    borderRadius: '20px', 
+                                                    display: 'flex', 
+                                                    alignItems: 'center', 
+                                                    gap: '8px',
+                                                    fontSize: '0.9rem',
+                                                    border: '1px solid #d5c4bd'
+                                                }}>
+                                                    {esp}
+                                                    <span 
+                                                        style={{ cursor: 'pointer', fontWeight: 'bold', marginLeft: '5px' }} 
+                                                        onClick={() => setEspecialidades(especialidades.filter((_, i) => i !== idx))}
+                                                    >
+                                                        ×
+                                                    </span>
+                                                </div>
+                                            ))}
+                                        </div>
                                     </div>
 
                                     <div className="input-group">
@@ -128,9 +247,33 @@ const PerfilFuncionaria = () => {
 
                                     <h3 style={{marginTop: '20px', marginBottom: '20px', fontWeight: '500'}}>Segurança</h3>
                                     
-                                    <div className="input-group">
+                                    <div className="input-group" style={{ position: 'relative' }}>
                                         <label>Nova Senha</label>
-                                        <input type="password" value={senha} onChange={(e) => setSenha(e.target.value)} placeholder="••••••••" />
+                                        <input 
+                                            type={mostrarSenha ? "text" : "password"} 
+                                            value={senha} 
+                                            onChange={(e) => setSenha(e.target.value)} 
+                                            placeholder="••••••••" 
+                                            style={{ paddingRight: '80px' }}
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={() => setMostrarSenha(!mostrarSenha)}
+                                            style={{
+                                                position: 'absolute',
+                                                right: '15px',
+                                                bottom: '14px',
+                                                background: 'none',
+                                                border: 'none',
+                                                color: '#888',
+                                                cursor: 'pointer',
+                                                fontSize: '0.8rem',
+                                                fontWeight: 'bold',
+                                                textTransform: 'uppercase'
+                                            }}
+                                        >
+                                            {mostrarSenha ? 'Ocultar' : 'Mostrar'}
+                                        </button>
                                     </div>
 
                                     <button type="submit" className="btn-primary" style={{marginTop: '20px', width: 'auto', padding: '12px 30px'}}>
