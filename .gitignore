@@ -11,6 +11,8 @@ build/
 # Database (EXCLUDED AS REQUESTED)
 *.sqlite
 database.sqlite
+*.db
+database.db
 
 # Environment
 .env
@@ -49,3 +51,5 @@ lerna-debug.log*
 .puppeteer-cache/
 **/.puppeteer-cache/
 node-portable/
+.gemini/
+**/.gemini/

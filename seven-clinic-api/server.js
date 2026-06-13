@@ -96,7 +96,7 @@ app.post('/api/usuarios', async (req, res) => {
                      nome=excluded.nome, senha_hash=excluded.senha_hash,
                      telefone=excluded.telefone, codigo=excluded.codigo, expiracao=excluded.expiracao`,
                 [nome, email, hashedPassword, telefone, codigo, expiracao.toISOString()],
-                function(dbErr) {
+                function (dbErr) {
                     if (dbErr) return res.status(500).json({ error: 'Erro ao criar verificação.' });
 
                     const mailOptions = {
@@ -126,7 +126,7 @@ app.post('/api/usuarios', async (req, res) => {
                 }
             );
         });
-    } catch(err) {
+    } catch (err) {
         res.status(500).json({ error: 'Erro ao processar cadastro.' });
     }
 });
@@ -151,7 +151,7 @@ app.post('/api/verificar-email', (req, res) => {
         db.run(
             'INSERT INTO usuarios (nome, email, senha_hash, telefone) VALUES (?, ?, ?, ?)',
             [pendente.nome, pendente.email, pendente.senha_hash, pendente.telefone],
-            function(insertErr) {
+            function (insertErr) {
                 if (insertErr) return res.status(500).json({ error: 'Erro ao criar conta.' });
                 db.run('DELETE FROM verificacao_email WHERE email = ?', [email]);
                 console.log(`[CADASTRO] Conta criada com sucesso para ${email}`);
@@ -216,7 +216,7 @@ app.post('/api/recuperar-senha', (req, res) => {
             const token = crypto.randomBytes(32).toString('hex');
             const expiracao = new Date(Date.now() + 3600000).toISOString();
 
-            db.run('INSERT INTO recuperacao_senha (email, token, expiracao) VALUES (?, ?, ?)', [email, token, expiracao], function(err) {
+            db.run('INSERT INTO recuperacao_senha (email, token, expiracao) VALUES (?, ?, ?)', [email, token, expiracao], function (err) {
                 if (err) return res.status(500).json({ error: 'Erro ao gerar token de recuperação' });
 
                 const resetLink = `${frontendUrl}/redefinir-senha?token=${token}`;
@@ -280,7 +280,7 @@ app.post('/api/redefinir-senha', async (req, res) => {
                 const hashedPassword = await bcrypt.hash(novaSenha, 10);
                 const tabela = user.tipo === 'profissional' ? 'profissionais' : 'usuarios';
 
-                db.run(`UPDATE ${tabela} SET senha_hash = ? WHERE email = ?`, [hashedPassword, email], function(updateErr) {
+                db.run(`UPDATE ${tabela} SET senha_hash = ? WHERE email = ?`, [hashedPassword, email], function (updateErr) {
                     if (updateErr) return res.status(500).json({ error: 'Erro ao atualizar a senha' });
                     db.run('DELETE FROM recuperacao_senha WHERE token = ?', [token]);
                     res.json({ message: 'Senha redefinida com sucesso!' });
@@ -327,8 +327,8 @@ app.get('/api/agendamentos', autenticar, (req, res) => {
     `;
     db.all(sql, [], (err, rows) => {
         if (err) return res.status(500).json({ error: err.message });
-        const formatados = rows.map(r => ({ 
-            ...r, 
+        const formatados = rows.map(r => ({
+            ...r,
             isBloqueio: r.isBloqueio === 1,
             isManutencao: r.isManutencao === 1,
             duracao: r.duracao || 30
@@ -387,17 +387,17 @@ app.post('/api/agendamentos', autenticar, (req, res) => {
     obterDadosCliente.then((dados) => {
         const nomeRealCliente = dados.nomeFinal;
         cliente_id = dados.idFinal;
-        
+
         // VALIDAÇÃO DE HORÁRIO DE FUNCIONAMENTO
         const reqDate = new Date(`${data}T12:00:00`);
         if (reqDate.getDay() === 0) { // 0 é Domingo
             return res.status(400).json({ error: 'A clínica não funciona aos domingos. Por favor, escolha outro dia.' });
         }
-        
+
         const startMins = toMinutes(horario);
         const endMins = startMins + duracaoMinutos;
-        
-        if (startMins < 480 || startMins >= 1140 || endMins > 1200) { 
+
+        if (startMins < 480 || startMins >= 1140 || endMins > 1200) {
             // 480 = 08:00, 1140 = 19:00 (último horário permitido para iniciar algo), 1200 = 20:00 (limite final estendido)
             return res.status(400).json({ error: 'O agendamento deve estar dentro do horário de funcionamento (08:00 às 19:00).' });
         }
@@ -428,8 +428,8 @@ app.post('/api/agendamentos', autenticar, (req, res) => {
             });
 
             if (sobreposicao) {
-                return res.status(400).json({ 
-                    error: `Este horário conflita com um agendamento existente com ${profissional}. Por favor, escolha outro horário.` 
+                return res.status(400).json({
+                    error: `Este horário conflita com um agendamento existente com ${profissional}. Por favor, escolha outro horário.`
                 });
             }
 
@@ -441,8 +441,8 @@ app.post('/api/agendamentos', autenticar, (req, res) => {
                         [data, cliente_id],
                         (err, row) => {
                             if (row) {
-                                return res.status(400).json({ 
-                                    error: 'Não é possível agendar cílios mais de uma vez no mesmo dia. O procedimento dura em média 2h e não pode ser repetido.' 
+                                return res.status(400).json({
+                                    error: 'Não é possível agendar cílios mais de uma vez no mesmo dia. O procedimento dura em média 2h e não pode ser repetido.'
                                 });
                             }
                             continuarInsercao();
@@ -493,7 +493,7 @@ app.post('/api/agendamentos', autenticar, (req, res) => {
                                 finalValor = finalValor * 0.70;
                             }
                         }
-                        
+
                         executarInsercao(nomeRealCliente, finalValor, finalIsManutencao);
                     });
                 } else {
@@ -523,9 +523,9 @@ app.post('/api/agendamentos', autenticar, (req, res) => {
                             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                         `;
                         db.run(
-                            insertSql, 
-                            [nomeCR, cliente_id, profissional, servico, data, horario, duracaoMinutos, isBloqueio ? 1 : 0, fManut, fVal, statusInicial], 
-                            function(err) {
+                            insertSql,
+                            [nomeCR, cliente_id, profissional, servico, data, horario, duracaoMinutos, isBloqueio ? 1 : 0, fManut, fVal, statusInicial],
+                            function (err) {
                                 if (err) return res.status(500).json({ error: 'Erro ao criar agendamento no banco de dados.' });
                                 res.status(201).json({ message: 'Agendamento criado com sucesso!', id: this.lastID });
                             }
@@ -555,7 +555,7 @@ app.put('/api/agendamentos/:id/status', autenticar, (req, res) => {
             if (agendamento.status === 'pendente') {
                 return res.status(400).json({ error: 'Não é possível concluir um agendamento pendente. Ele deve ser aceito/confirmado primeiro.' });
             }
-            
+
             const agendamentoDate = new Date(`${agendamento.data}T${agendamento.horario}:00`);
             if (new Date() < agendamentoDate) {
                 return res.status(400).json({ error: 'O agendamento só pode ser concluído após o horário de início do serviço.' });
@@ -567,15 +567,26 @@ app.put('/api/agendamentos/:id/status', autenticar, (req, res) => {
             let msgZap = '';
 
             if (status === 'confirmado') {
-                msgZap = `[WhatsApp] Para a cliente ${agendamento.cliente}:\nOlá! O seu agendamento de ${agendamento.servico} com a profissional ${agendamento.profissional} (Dia ${agendamento.data} às ${agendamento.horario}) foi CONFIRMADO!`;
-                
+                if (usuarioLogado.tipo_usuario === 'cliente' && agendamento.status === 'sugerido') {
+                    msgZap = `Olá, ${agendamento.profissional}💜\na cliente ${agendamento.cliente} ACEITOU o novo horário sugerido para o agendamento de ${agendamento.servico} (Dia ${agendamento.data} às ${agendamento.horario}).`;
+                    db.get('SELECT telefone FROM profissionais WHERE nome = ?', [agendamento.profissional], (err, prof) => {
+                        if (prof && prof.telefone) enviarMensagemWhatsApp(prof.telefone, msgZap);
+                    });
+                } else {
+                    msgZap = `Olá,${agendamento.cliente}! 💜\n o seu agendamento de ${agendamento.servico} com a profissional ${agendamento.profissional} (Dia ${agendamento.data} às ${agendamento.horario}) foi CONFIRMADO!🌙​💜 `;
+                    db.get('SELECT telefone FROM usuarios WHERE id = ?', [agendamento.cliente_id], (err, user) => {
+                        if (user && user.telefone) enviarMensagemWhatsApp(user.telefone, msgZap);
+                    });
+                }
+            }
+            else if (status === 'sugerido') {
+                msgZap = `Olá,${agendamento.cliente}:\n a profissional ${agendamento.profissional} sugeriu um novo horário para o seu agendamento de ${agendamento.servico}: Dia ${agendamento.data} às ${agendamento.horario}. Acesse o sistema para confirmar ou recusar.💜`;
                 db.get('SELECT telefone FROM usuarios WHERE id = ?', [agendamento.cliente_id], (err, user) => {
                     if (user && user.telefone) enviarMensagemWhatsApp(user.telefone, msgZap);
                 });
-            } 
+            }
             else if (status === 'recusado') {
-                msgZap = `[WhatsApp] Para a cliente ${agendamento.cliente}:\nOlá! Infelizmente, a sua solicitação de agendamento de ${agendamento.servico} com a profissional ${agendamento.profissional} (Dia ${agendamento.data} às ${agendamento.horario}) foi RECUSADA. Por favor, tente agendar outro horário pelo site.`;
-                
+                msgZap = `Olá, ${agendamento.cliente}:\n infelizmente, a sua solicitação de agendamento de ${agendamento.servico} com a profissional ${agendamento.profissional} (Dia ${agendamento.data} às ${agendamento.horario}) foi RECUSADA. Por favor, tente agendar outro horário pelo site.💜`;
                 db.get('SELECT telefone FROM usuarios WHERE id = ?', [agendamento.cliente_id], (err, user) => {
                     if (user && user.telefone) enviarMensagemWhatsApp(user.telefone, msgZap);
                 });
@@ -586,7 +597,7 @@ app.put('/api/agendamentos/:id/status', autenticar, (req, res) => {
                 const horasDiferenca = (dataHoraAgendamento - agora) / (1000 * 60 * 60);
 
                 if (usuarioLogado.tipo_usuario === 'cliente') {
-                    msgZap = `[WhatsApp] Para a profissional ${agendamento.profissional}:\nA cliente ${agendamento.cliente} CANCELOU o agendamento de ${agendamento.servico} (Dia ${agendamento.data} às ${agendamento.horario}).`;
+                    msgZap = `Olá, ${agendamento.profissional}:\na cliente ${agendamento.cliente} CANCELOU o agendamento de ${agendamento.servico} (Dia ${agendamento.data} às ${agendamento.horario}).💜`;
 
                     db.get('SELECT telefone FROM profissionais WHERE nome = ?', [agendamento.profissional], (err, prof) => {
                         if (prof && prof.telefone) enviarMensagemWhatsApp(prof.telefone, msgZap);
@@ -599,8 +610,8 @@ app.put('/api/agendamentos/:id/status', autenticar, (req, res) => {
                         }
                     }
                 } else if (usuarioLogado.tipo_usuario === 'profissional') {
-                    msgZap = `[WhatsApp] Para a cliente ${agendamento.cliente}:\nOlá! A sua profissional ${agendamento.profissional} precisou CANCELAR o seu agendamento de ${agendamento.servico} (Dia ${agendamento.data} às ${agendamento.horario}). Por favor, entre em contato para reagendar.`;
-                    
+                    msgZap = `Olá, ${agendamento.cliente}:\na profissional ${agendamento.profissional} precisou CANCELAR o seu agendamento de ${agendamento.servico} (Dia ${agendamento.data} às ${agendamento.horario}). Por favor, entre em contato para reagendar.💜`;
+
                     db.get('SELECT telefone FROM usuarios WHERE id = ?', [agendamento.cliente_id], (err, user) => {
                         if (user && user.telefone) enviarMensagemWhatsApp(user.telefone, msgZap);
                     });
@@ -636,15 +647,18 @@ app.put('/api/agendamentos/:id/status', autenticar, (req, res) => {
             } else if (status === 'confirmado' && (nova_data || novo_horario)) {
                 updateSql = 'UPDATE agendamentos SET status = ?, data = ?, horario = ? WHERE id = ?';
                 params = [status, agendamento.data, agendamento.horario, id];
+            } else if (status === 'sugerido') {
+                updateSql = 'UPDATE agendamentos SET status = ?, data = ?, horario = ? WHERE id = ?';
+                params = [status, agendamento.data, agendamento.horario, id];
             }
 
-            db.run(updateSql, params, function(err) {
+            db.run(updateSql, params, function (err) {
                 if (err) return res.status(500).json({ error: 'Erro ao atualizar status' });
                 res.json({ message: 'Status atualizado com sucesso' });
             });
         };
 
-        if (status === 'confirmado') {
+        if (status === 'confirmado' || status === 'sugerido') {
             if (nova_data) agendamento.data = nova_data;
             if (novo_horario) agendamento.horario = novo_horario;
 
@@ -669,11 +683,11 @@ app.put('/api/agendamentos/:id/status', autenticar, (req, res) => {
                 });
 
                 if (sobreposicao) {
-                    return res.status(400).json({ 
-                        error: 'Não é possível confirmar! Já existe um agendamento confirmado neste mesmo horário.' 
+                    return res.status(400).json({
+                        error: 'Não é possível confirmar! Já existe um agendamento confirmado neste mesmo horário.'
                     });
                 }
-                
+
                 prosseguirAtualizacao();
             });
         } else {
@@ -691,7 +705,7 @@ app.put('/api/agendamentos/:id/avaliar', autenticar, (req, res) => {
         return res.status(403).json({ error: 'Apenas clientes podem avaliar profissionais.' });
     }
 
-    db.run('UPDATE agendamentos SET nota_profissional = ? WHERE id = ? AND status = "concluido"', [nota_profissional, id], function(err) {
+    db.run('UPDATE agendamentos SET nota_profissional = ? WHERE id = ? AND status = "concluido"', [nota_profissional, id], function (err) {
         if (err) return res.status(500).json({ error: 'Erro ao salvar avaliação' });
         if (this.changes === 0) return res.status(400).json({ error: 'Agendamento não encontrado ou não concluído.' });
         res.json({ message: 'Avaliação salva com sucesso' });
@@ -711,8 +725,8 @@ app.get('/api/usuarios/:id/taxa', autenticar, (req, res) => {
 // 7. ATUALIZAÇÃO DE PERFIL — Protegido
 app.put('/api/usuarios/:id', autenticar, async (req, res) => {
     const { id } = req.params;
-    const { nome, email, telefone, senha, foto_url, bio, especialidades } = req.body;
-    
+    const { nome, email, telefone, senha, senha_atual, foto_url, bio, especialidades } = req.body;
+
     console.log(`[PUT /api/usuarios/${id}] Recebido update para usuário ${req.usuario.id} (${req.usuario.tipo_usuario})`);
     console.log(`Payload: nome=${nome}, email=${email}, foto_url length=${foto_url ? foto_url.length : 0}`);
 
@@ -723,43 +737,62 @@ app.put('/api/usuarios/:id', autenticar, async (req, res) => {
     const isProfissional = req.usuario.tipo_usuario === 'profissional';
     const tabela = isProfissional ? 'profissionais' : 'usuarios';
 
-    try {
-        let hash = null;
-        if (senha && senha.trim() !== '') {
-            hash = await bcrypt.hash(senha, 10);
-        }
+    const prosseguirAtualizacao = async () => {
+        try {
+            let hash = null;
+            if (senha && senha.trim() !== '') {
+                hash = await bcrypt.hash(senha, 10);
+            }
 
-        if (isProfissional) {
-            if (hash) {
-                db.run(`UPDATE profissionais SET nome=?, email=?, telefone=?, foto_url=?, bio=?, especialidades=?, senha_hash=? WHERE id=?`, 
-                    [nome, email, telefone, foto_url, bio, especialidades, hash, id], function(err) {
-                    if (err) return res.status(500).json({ error: 'Erro ao atualizar perfil com nova senha.' });
-                    res.json({ message: 'Perfil atualizado com sucesso.' });
-                });
+            if (isProfissional) {
+                if (hash) {
+                    db.run(`UPDATE profissionais SET nome=?, email=?, telefone=?, foto_url=?, bio=?, especialidades=?, senha_hash=? WHERE id=?`,
+                        [nome, email, telefone, foto_url, bio, especialidades, hash, id], function (err) {
+                            if (err) return res.status(500).json({ error: 'Erro ao atualizar perfil com nova senha.' });
+                            res.json({ message: 'Perfil atualizado com sucesso.' });
+                        });
+                } else {
+                    db.run(`UPDATE profissionais SET nome=?, email=?, telefone=?, foto_url=?, bio=?, especialidades=? WHERE id=?`,
+                        [nome, email, telefone, foto_url, bio, especialidades, id], function (err) {
+                            if (err) return res.status(500).json({ error: 'Erro ao atualizar perfil.' });
+                            res.json({ message: 'Perfil atualizado com sucesso.' });
+                        });
+                }
             } else {
-                db.run(`UPDATE profissionais SET nome=?, email=?, telefone=?, foto_url=?, bio=?, especialidades=? WHERE id=?`, 
-                    [nome, email, telefone, foto_url, bio, especialidades, id], function(err) {
-                    if (err) return res.status(500).json({ error: 'Erro ao atualizar perfil.' });
-                    res.json({ message: 'Perfil atualizado com sucesso.' });
-                });
+                if (hash) {
+                    db.run(`UPDATE usuarios SET nome=?, email=?, telefone=?, foto_url=?, senha_hash=? WHERE id=?`,
+                        [nome, email, telefone, foto_url, hash, id], function (err) {
+                            if (err) return res.status(500).json({ error: 'Erro ao atualizar perfil com nova senha.' });
+                            res.json({ message: 'Perfil atualizado com sucesso.' });
+                        });
+                } else {
+                    db.run(`UPDATE usuarios SET nome=?, email=?, telefone=?, foto_url=? WHERE id=?`,
+                        [nome, email, telefone, foto_url, id], function (err) {
+                            if (err) return res.status(500).json({ error: 'Erro ao atualizar perfil.' });
+                            res.json({ message: 'Perfil atualizado com sucesso.' });
+                        });
+                }
             }
-        } else {
-            if (hash) {
-                db.run(`UPDATE usuarios SET nome=?, email=?, telefone=?, foto_url=?, senha_hash=? WHERE id=?`, 
-                    [nome, email, telefone, foto_url, hash, id], function(err) {
-                    if (err) return res.status(500).json({ error: 'Erro ao atualizar perfil com nova senha.' });
-                    res.json({ message: 'Perfil atualizado com sucesso.' });
-                });
-            } else {
-                db.run(`UPDATE usuarios SET nome=?, email=?, telefone=?, foto_url=? WHERE id=?`, 
-                    [nome, email, telefone, foto_url, id], function(err) {
-                    if (err) return res.status(500).json({ error: 'Erro ao atualizar perfil.' });
-                    res.json({ message: 'Perfil atualizado com sucesso.' });
-                });
-            }
+        } catch (error) {
+            res.status(500).json({ error: 'Erro interno do servidor.' });
         }
-    } catch (error) {
-        res.status(500).json({ error: 'Erro interno do servidor.' });
+    };
+
+    if (senha && senha.trim() !== '') {
+        if (!senha_atual) {
+            return res.status(400).json({ error: 'Você deve informar a senha atual para alterá-la.' });
+        }
+        db.get(`SELECT senha_hash FROM ${tabela} WHERE id = ?`, [id], async (err, row) => {
+            if (err || !row) return res.status(500).json({ error: 'Erro ao validar senha atual.' });
+
+            const validPassword = await bcrypt.compare(senha_atual, row.senha_hash);
+            if (!validPassword && senha_atual !== row.senha_hash) {
+                return res.status(401).json({ error: 'A senha atual está incorreta.' });
+            }
+            prosseguirAtualizacao();
+        });
+    } else {
+        prosseguirAtualizacao();
     }
 });
 
@@ -774,7 +807,7 @@ app.delete('/api/usuarios/:id', autenticar, (req, res) => {
 
     const tabela = req.usuario.tipo_usuario === 'profissional' ? 'profissionais' : 'usuarios';
 
-    db.run(`DELETE FROM ${tabela} WHERE id = ?`, [id], function(err) {
+    db.run(`DELETE FROM ${tabela} WHERE id = ?`, [id], function (err) {
         if (err) return res.status(500).json({ error: 'Erro ao excluir a conta.' });
         if (this.changes === 0) return res.status(404).json({ error: 'Conta não encontrada.' });
 

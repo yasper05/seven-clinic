@@ -24,7 +24,7 @@ const getMinDate = () => {
 
 const PainelFuncionaria = () => {
     const navigate = useNavigate();
-    const { agendamentos, concluirAgendamento, adicionarAgendamento, buscarAgendamentos, cancelarAgendamento, naoCompareceuAgendamento, confirmarAgendamento, recusarAgendamento } = useContext(AgendamentoContext);
+    const { agendamentos, concluirAgendamento, adicionarAgendamento, buscarAgendamentos, cancelarAgendamento, naoCompareceuAgendamento, confirmarAgendamento, sugerirAgendamento, recusarAgendamento } = useContext(AgendamentoContext);
 
     useEffect(() => {
         buscarAgendamentos();
@@ -138,10 +138,25 @@ const PainelFuncionaria = () => {
 
     const submitConfirmar = async (e) => {
         e.preventDefault();
-        const res = await confirmarAgendamento(selectedAgendamento.id, { 
-            nova_data: dadosConfirmacao.data, 
-            novo_horario: dadosConfirmacao.horario 
-        });
+        
+        const mudouHorario = dadosConfirmacao.data !== selectedAgendamento.data || dadosConfirmacao.horario !== selectedAgendamento.horario;
+
+        let res;
+        if (mudouHorario) {
+            res = await sugerirAgendamento(selectedAgendamento.id, { 
+                nova_data: dadosConfirmacao.data, 
+                novo_horario: dadosConfirmacao.horario 
+            });
+            if (!res?.error) {
+                alert('O novo horário foi enviado como sugestão para a cliente. O agendamento aguardará o aceite dela.');
+            }
+        } else {
+            res = await confirmarAgendamento(selectedAgendamento.id, { 
+                nova_data: dadosConfirmacao.data, 
+                novo_horario: dadosConfirmacao.horario 
+            });
+        }
+
         if (res && res.error) {
             alert(res.error);
         } else {
@@ -561,7 +576,7 @@ const PainelFuncionaria = () => {
                                 <div className="detail-item">
                                     <span className="detail-label">Status:</span>
                                     <span className="status-badge" style={{display: 'inline-block'}}>
-                                        {selectedAgendamento.status === 'pendente' ? 'Aguardando Confirmação' : selectedAgendamento.status === 'confirmado' ? 'Confirmado' : selectedAgendamento.status}
+                                        {selectedAgendamento.status === 'pendente' ? 'Aguardando Confirmação' : selectedAgendamento.status === 'confirmado' ? 'Confirmado' : selectedAgendamento.status === 'sugerido' ? 'Sugerido (Aguardando Cliente)' : selectedAgendamento.status}
                                         {selectedAgendamento.status === 'cancelado' && selectedAgendamento.cancelado_por && ` (pela ${selectedAgendamento.cancelado_por})`}
                                         {selectedAgendamento.status === 'recusado' && selectedAgendamento.cancelado_por && ` (pela ${selectedAgendamento.cancelado_por})`}
                                     </span>
@@ -580,13 +595,30 @@ const PainelFuncionaria = () => {
                                 <button type="button" className="btn-secondary" onClick={() => setIsModalOpen(false)}>Fechar</button>
                                 {selectedAgendamento.status === 'pendente' && (
                                     <>
-                                        <button type="button" className="btn-secondary" style={{ borderColor: '#e74c3c', color: '#e74c3c' }} onClick={() => handleRecusar(selectedAgendamento.id)}>Recusar Solicitação</button>
-                                        <button type="button" className="btn-success" onClick={handleConfirmarClick}>Confirmar Agendamento</button>
+                                        <button type="button" className="btn-secondary" style={{ borderColor: '#e74c3c', color: '#e74c3c', opacity: canConcluir() ? 0.5 : 1, cursor: canConcluir() ? 'not-allowed' : 'pointer' }} onClick={() => {
+                                            if (canConcluir()) { alert('Não é possível recusar um agendamento cujo horário já passou.'); return; }
+                                            handleRecusar(selectedAgendamento.id);
+                                        }}>Recusar Solicitação</button>
+                                        <button type="button" className="btn-success" style={{ opacity: canConcluir() ? 0.5 : 1, cursor: canConcluir() ? 'not-allowed' : 'pointer' }} onClick={() => {
+                                            if (canConcluir()) { alert('Não é possível aceitar um agendamento cujo horário já passou.'); return; }
+                                            handleConfirmarClick();
+                                        }}>Confirmar Agendamento</button>
+                                    </>
+                                )}
+                                {selectedAgendamento.status === 'sugerido' && (
+                                    <>
+                                        <button type="button" className="btn-secondary" style={{ borderColor: '#e74c3c', color: '#e74c3c', opacity: canConcluir() ? 0.5 : 1, cursor: canConcluir() ? 'not-allowed' : 'pointer' }} onClick={() => {
+                                            if (canConcluir()) { alert('Não é possível cancelar um agendamento cujo horário já passou.'); return; }
+                                            handleCancelarProf(selectedAgendamento.id);
+                                        }}>Cancelar Sugestão</button>
                                     </>
                                 )}
                                 {selectedAgendamento.status === 'confirmado' && (
                                     <>
-                                        <button type="button" className="btn-secondary" style={{ borderColor: '#e74c3c', color: '#e74c3c' }} onClick={() => handleCancelarProf(selectedAgendamento.id)}>Cancelar Agendamento</button>
+                                        <button type="button" className="btn-secondary" style={{ borderColor: '#e74c3c', color: '#e74c3c', opacity: canConcluir() ? 0.5 : 1, cursor: canConcluir() ? 'not-allowed' : 'pointer' }} onClick={() => {
+                                            if (canConcluir()) { alert('Não é possível cancelar um agendamento cujo horário já passou.'); return; }
+                                            handleCancelarProf(selectedAgendamento.id);
+                                        }}>Cancelar Agendamento</button>
                                         <button type="button" className="btn-secondary" style={{ borderColor: '#f39c12', color: '#f39c12' }} onClick={() => handleNaoCompareceu(selectedAgendamento.id)}>Não Compareceu</button>
                                         <button 
                                             type="button" 
