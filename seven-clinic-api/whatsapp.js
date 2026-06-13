@@ -118,7 +118,7 @@ function buscarAgendamentosPorData(dataISO) {
             FROM agendamentos a
             LEFT JOIN usuarios u ON a.cliente_id = u.id OR a.cliente = u.nome
             WHERE a.data = ?
-              AND a.status = 'pendente'
+              AND a.status IN ('pendente', 'confirmado')
               AND a.isBloqueio = 0
         `;
         db.all(sql, [dataISO], (err, rows) => {

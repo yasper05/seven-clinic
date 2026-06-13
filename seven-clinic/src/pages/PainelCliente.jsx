@@ -51,7 +51,7 @@ const getMinDate = () => {
    ───────────────────────────────────────────────────────────────── */
 const PainelCliente = () => {
     const navigate = useNavigate();
-    const { agendamentos, adicionarAgendamento, cancelarAgendamento, buscarAgendamentos, avaliarAtendimento } = useContext(AgendamentoContext);
+    const { agendamentos, adicionarAgendamento, cancelarAgendamento, confirmarAgendamento, buscarAgendamentos, avaliarAtendimento } = useContext(AgendamentoContext);
 
     useEffect(() => {
         buscarAgendamentos();
@@ -265,7 +265,7 @@ const PainelCliente = () => {
                 ag.data === data &&
                 ag.cliente_id === userLogado.id &&
                 !ag.isBloqueio &&
-                ag.status !== 'cancelado' && ag.status !== 'recusado'
+                ag.status !== 'cancelado' && ag.status !== 'recusado' && ag.status !== 'nao_compareceu'
             );
             if (ciliosNoHistorico) {
                 setErroModal('Você já possui um agendamento de cílios neste dia. O procedimento não pode ser feito duas vezes no mesmo dia.');
@@ -384,13 +384,25 @@ const PainelCliente = () => {
     const meusAgendamentos = agendamentos.filter(ag =>
         !ag.isBloqueio && ag.cliente_id === userLogado.id
     );
-    const pendentes = meusAgendamentos.filter(ag => ag.status === 'pendente' || ag.status === 'confirmado')
+    const pendentes = meusAgendamentos.filter(ag => ag.status === 'pendente' || ag.status === 'confirmado' || ag.status === 'sugerido')
         .sort((a, b) => (a.data + a.horario).localeCompare(b.data + b.horario));
     const proximo = pendentes[0] || null;
 
     const handleCancelar = (id) => {
+        const ag = agendamentos.find(a => a.id === id);
+        if (ag) {
+            const agendamentoDate = new Date(`${ag.data}T${ag.horario}:00`);
+            if (new Date() > agendamentoDate) {
+                alert('Não é possível cancelar um agendamento cujo horário já passou.');
+                return;
+            }
+        }
         if (window.confirm('Tem certeza que deseja cancelar este agendamento?'))
             cancelarAgendamento(id, 'Cliente');
+    };
+
+    const handleConfirmarSugestao = (id) => {
+        confirmarAgendamento(id);
     };
 
     const totalSacola = sacola.reduce((s, i) => s + i.valor, 0);
@@ -442,10 +454,21 @@ const PainelCliente = () => {
                                 <p><strong>Data:</strong> {formatDate(proximo.data)}</p>
                                 <p><strong>Horário:</strong> {proximo.horario}</p>
                                 <p><strong>Profissional:</strong> {proximo.profissional}</p>
-                                <p><strong>Status:</strong> <span style={{color: proximo.status === 'pendente' ? '#f39c12' : '#27ae60', fontWeight: 'bold'}}>{proximo.status === 'pendente' ? 'Aguardando Confirmação' : 'Confirmado'}</span></p>
+                                <p><strong>Status:</strong> <span style={{color: proximo.status === 'pendente' ? '#f39c12' : proximo.status === 'sugerido' ? '#e67e22' : '#27ae60', fontWeight: 'bold'}}>{proximo.status === 'pendente' ? 'Aguardando Confirmação' : proximo.status === 'sugerido' ? 'Sugerido (Ação Necessária)' : 'Confirmado'}</span></p>
                                 {proximo.valor > 0 && <p><strong>Valor:</strong> R$ {proximo.valor.toFixed(2)}</p>}
                             </div>
-                            <button className="btn-secondary" onClick={() => handleCancelar(proximo.id)}>Cancelar Agendamento</button>
+
+                            {proximo.status === 'sugerido' ? (
+                                <div style={{ background: '#fff3cd', border: '1px solid #ffeeba', padding: '15px', borderRadius: '8px', marginTop: '15px' }}>
+                                    <p style={{ color: '#856404', fontSize: '0.9rem', marginBottom: '10px' }}><strong>Atenção:</strong> Sua profissional sugeriu este novo horário. Deseja aceitar?</p>
+                                    <div style={{ display: 'flex', gap: '10px' }}>
+                                        <button className="btn-success" onClick={() => handleConfirmarSugestao(proximo.id)}>Aceitar Sugestão</button>
+                                        <button className="btn-secondary" onClick={() => handleCancelar(proximo.id)}>Recusar e Cancelar</button>
+                                    </div>
+                                </div>
+                            ) : (
+                                <button className="btn-secondary" onClick={() => handleCancelar(proximo.id)}>Cancelar Agendamento</button>
+                            )}
                         </div>
                     ) : (
                         <div className="card-agendamento destaquecard">
@@ -486,18 +509,30 @@ const PainelCliente = () => {
                                             {ag.status === 'concluido' ? 'Concluído' : 
                                              ag.status === 'cancelado' ? `Cancelado${ag.cancelado_por ? ` (por ${ag.cancelado_por})` : ''}` : 
                                              ag.status === 'recusado' ? `Recusado${ag.cancelado_por ? ` (por ${ag.cancelado_por})` : ''}` :
+                                             ag.status === 'sugerido' ? 'Sugerido (Ação Necessária)' :
                                              ag.status === 'confirmado' ? 'Confirmado' : 'Aguardando'}
                                         </span>
                                     </td>
                                     <td>
-                                        {(ag.status === 'pendente' || ag.status === 'confirmado') && (
-                                            <button
-                                                className="btn-secondary"
-                                                style={{ padding: '4px 10px', fontSize: '0.8rem' }}
-                                                onClick={() => handleCancelar(ag.id)}
-                                            >
-                                                Cancelar
-                                            </button>
+                                        {(ag.status === 'pendente' || ag.status === 'confirmado' || ag.status === 'sugerido') && (
+                                            <>
+                                                {ag.status === 'sugerido' && (
+                                                    <button
+                                                        className="btn-success"
+                                                        style={{ padding: '4px 10px', fontSize: '0.8rem', marginRight: '5px' }}
+                                                        onClick={() => handleConfirmarSugestao(ag.id)}
+                                                    >
+                                                        Aceitar
+                                                    </button>
+                                                )}
+                                                <button
+                                                    className="btn-secondary"
+                                                    style={{ padding: '4px 10px', fontSize: '0.8rem' }}
+                                                    onClick={() => handleCancelar(ag.id)}
+                                                >
+                                                    {ag.status === 'sugerido' ? 'Recusar' : 'Cancelar'}
+                                                </button>
+                                            </>
                                         )}
                                         {ag.status === 'concluido' && !ag.nota_profissional && (
                                             <button

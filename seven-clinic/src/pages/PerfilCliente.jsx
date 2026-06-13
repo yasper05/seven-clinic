@@ -11,6 +11,7 @@ const PerfilCliente = () => {
     const [email, setEmail] = useState(userLogado.email || '');
     const [telefone, setTelefone] = useState(userLogado.telefone || '');
     const [senha, setSenha] = useState('');
+    const [senhaAtual, setSenhaAtual] = useState('');
     const [mostrarSenha, setMostrarSenha] = useState(false);
     const [fotoPerfil, setFotoPerfil] = useState(userLogado.foto_url || null);
     const [excluindo, setExcluindo] = useState(false);
@@ -26,6 +27,7 @@ const PerfilCliente = () => {
                 email,
                 telefone,
                 senha,
+                senha_atual: senhaAtual,
                 foto_url: fotoPerfil
             };
 
@@ -41,6 +43,7 @@ const PerfilCliente = () => {
 
             alert('Perfil atualizado com sucesso!');
             setSenha('');
+            setSenhaAtual('');
         } catch (error) {
             alert(error.response?.data?.error || 'Erro ao atualizar o perfil. Tente novamente.');
         }
@@ -54,25 +57,51 @@ const PerfilCliente = () => {
         const file = e.target.files[0];
         if (file) {
             const reader = new FileReader();
-            reader.onloadend = async () => {
-                const base64Foto = reader.result;
-                setFotoPerfil(base64Foto);
-                
-                // Salvar automaticamente a foto no banco de dados
-                try {
-                    const body = { nome, email, telefone, foto_url: base64Foto };
-                    const { default: api } = await import('../api');
-                    await api.put(`/api/usuarios/${userLogado.id}`, body);
-                    
-                    const newUserLogado = { ...userLogado, foto_url: base64Foto };
-                    if (localStorage.getItem('userLogado')) {
-                        localStorage.setItem('userLogado', JSON.stringify(newUserLogado));
+            reader.onloadend = () => {
+                const img = new Image();
+                img.src = reader.result;
+                img.onload = async () => {
+                    const canvas = document.createElement('canvas');
+                    const MAX_WIDTH = 500;
+                    const MAX_HEIGHT = 500;
+                    let width = img.width;
+                    let height = img.height;
+
+                    if (width > height) {
+                        if (width > MAX_WIDTH) {
+                            height *= MAX_WIDTH / width;
+                            width = MAX_WIDTH;
+                        }
                     } else {
-                        sessionStorage.setItem('userLogado', JSON.stringify(newUserLogado));
+                        if (height > MAX_HEIGHT) {
+                            width *= MAX_HEIGHT / height;
+                            height = MAX_HEIGHT;
+                        }
                     }
-                } catch (error) {
-                    alert('Aviso: A foto foi alterada na tela, mas houve um erro ao salvar no servidor.');
-                }
+                    canvas.width = width;
+                    canvas.height = height;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0, width, height);
+                    
+                    const base64Foto = canvas.toDataURL('image/jpeg', 0.8);
+                    setFotoPerfil(base64Foto);
+                    
+                    // Salvar automaticamente a foto no banco de dados
+                    try {
+                        const body = { nome, email, telefone, foto_url: base64Foto };
+                        const { default: api } = await import('../api');
+                        await api.put(`/api/usuarios/${userLogado.id}`, body);
+                        
+                        const newUserLogado = { ...userLogado, foto_url: base64Foto };
+                        if (localStorage.getItem('userLogado')) {
+                            localStorage.setItem('userLogado', JSON.stringify(newUserLogado));
+                        } else {
+                            sessionStorage.setItem('userLogado', JSON.stringify(newUserLogado));
+                        }
+                    } catch (error) {
+                        alert('Aviso: A foto foi alterada na tela, mas houve um erro ao salvar no servidor.');
+                    }
+                };
             };
             reader.readAsDataURL(file);
         }
@@ -186,6 +215,16 @@ const PerfilCliente = () => {
                                     </div>
 
                                     <h3 style={{marginTop: '20px', marginBottom: '20px', fontWeight: '500'}}>Segurança</h3>
+
+                                    <div className="input-group">
+                                        <label>Senha Atual (Obrigatória se for alterar a senha)</label>
+                                        <input 
+                                            type={mostrarSenha ? "text" : "password"} 
+                                            value={senhaAtual} 
+                                            onChange={(e) => setSenhaAtual(e.target.value)} 
+                                            placeholder="••••••••" 
+                                        />
+                                    </div>
 
                                     <div className="input-group" style={{ position: 'relative' }}>
                                         <label>Nova Senha (deixe em branco para não alterar)</label>

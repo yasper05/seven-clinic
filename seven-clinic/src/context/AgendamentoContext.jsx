@@ -24,6 +24,12 @@ export const AgendamentoProvider = ({ children }) => {
 
   useEffect(() => {
     buscarAgendamentos();
+    // Atualização automática a cada 10 segundos
+    const intervalo = setInterval(() => {
+      buscarAgendamentos();
+    }, 10000);
+
+    return () => clearInterval(intervalo);
   }, []);
 
   const adicionarAgendamento = async (novoAgendamento) => {
@@ -45,6 +51,18 @@ export const AgendamentoProvider = ({ children }) => {
       return { success: true };
     } catch (error) {
       console.error('Erro ao confirmar agendamento:', error);
+      const msg = error.response?.data?.error || error.message || 'Erro desconhecido';
+      return { error: msg };
+    }
+  };
+
+  const sugerirAgendamento = async (id, dadosSugestao = {}) => {
+    try {
+      await api.put(`/api/agendamentos/${id}/status`, { status: 'sugerido', ...dadosSugestao });
+      buscarAgendamentos();
+      return { success: true };
+    } catch (error) {
+      console.error('Erro ao sugerir agendamento:', error);
       const msg = error.response?.data?.error || error.message || 'Erro desconhecido';
       return { error: msg };
     }
@@ -104,6 +122,7 @@ export const AgendamentoProvider = ({ children }) => {
         concluirAgendamento,
         naoCompareceuAgendamento,
         confirmarAgendamento,
+        sugerirAgendamento,
         recusarAgendamento,
         avaliarAtendimento
     }}>
