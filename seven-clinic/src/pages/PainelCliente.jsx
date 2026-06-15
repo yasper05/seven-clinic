@@ -649,7 +649,23 @@ const PainelCliente = () => {
                                         {/* Procedimento */}
                                         <div className="input-group">
                                             <label>Procedimento</label>
-                                            <select value={servico.nome} onChange={e => handleServChange(e.target.value)}>
+                                            <select 
+                                                value={servico.nome} 
+                                                onChange={e => handleServChange(e.target.value)}
+                                                style={{
+                                                    width: '100%',
+                                                    padding: '10px 12px',
+                                                    border: '2px solid #e0e0e0',
+                                                    borderRadius: '8px',
+                                                    background: '#fff',
+                                                    color: '#444',
+                                                    fontSize: '0.9rem',
+                                                    outline: 'none',
+                                                    cursor: 'pointer',
+                                                    fontFamily: 'inherit',
+                                                    boxSizing: 'border-box'
+                                                }}
+                                            >
                                                 {PROFISSIONAIS_SERVICOS[profissional].categorias[categoria].map(s => (
                                                     <option key={s.nome} value={s.nome}>
                                                         {s.nome} {s.preco ? `— R$ ${s.preco.toFixed(2)}` : ''}

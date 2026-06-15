@@ -734,6 +734,24 @@ app.put('/api/usuarios/:id', autenticar, async (req, res) => {
         return res.status(403).json({ error: 'Você não tem permissão para alterar este perfil.' });
     }
 
+    if (senha && senha.trim() !== '') {
+        const validarSenhaForteServer = (s) => {
+            if (s.length < 10) return "A senha deve ter pelo menos 10 caracteres.";
+            if (!/[A-Z]/.test(s)) return "A senha deve conter pelo menos uma letra maiúscula.";
+            if (!/[a-z]/.test(s)) return "A senha deve conter pelo menos uma letra minúscula.";
+            if (!/[0-9]/.test(s)) return "A senha deve conter pelo menos um número.";
+            if (!/[!@#$%^&*(),.?":{}|<>]/.test(s)) return "A senha deve conter pelo menos um caractere especial.";
+            return null;
+        };
+        const erroSenha = validarSenhaForteServer(senha);
+        if (erroSenha) return res.status(400).json({ error: erroSenha });
+
+        const primeiroNome = (nome || '').split(' ')[0].toLowerCase();
+        if (primeiroNome.length > 2 && senha.toLowerCase().includes(primeiroNome)) {
+            return res.status(400).json({ error: 'A senha não pode conter o seu nome.' });
+        }
+    }
+
     const isProfissional = req.usuario.tipo_usuario === 'profissional';
     const tabela = isProfissional ? 'profissionais' : 'usuarios';
 

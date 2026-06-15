@@ -122,6 +122,24 @@ const PerfilFuncionaria = () => {
         }
     };
 
+    const handleRemoverFoto = async () => {
+        setFotoPerfil(null);
+        try {
+            const body = { nome, email, telefone, foto_url: null, bio, especialidades: especialidades.join(', ') };
+            const { default: api } = await import('../api');
+            await api.put(`/api/usuarios/${userLogado.id}`, body);
+            
+            const newUserLogado = { ...userLogado, foto_url: null };
+            if (localStorage.getItem('userLogado')) {
+                localStorage.setItem('userLogado', JSON.stringify(newUserLogado));
+            } else {
+                sessionStorage.setItem('userLogado', JSON.stringify(newUserLogado));
+            }
+        } catch (error) {
+            alert('Aviso: A foto foi removida da tela, mas houve um erro ao salvar no servidor.');
+        }
+    };
+
     return (
         <div className="dashboard-container">
             <aside className="sidebar">
@@ -176,7 +194,12 @@ const PerfilFuncionaria = () => {
                                     accept="image/*" 
                                     style={{ display: 'none' }} 
                                 />
-                                <button type="button" className="btn-secondary btn-small" style={{marginTop: '15px'}} onClick={handleFotoClick}>Trocar Foto</button>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '15px' }}>
+                                    <button type="button" className="btn-secondary btn-small" onClick={handleFotoClick}>Trocar Foto</button>
+                                    {fotoPerfil && (
+                                        <button type="button" className="btn-secondary btn-small" style={{ color: '#c0392b', borderColor: '#ffcdd2', background: '#ffebee' }} onClick={handleRemoverFoto}>Remover Foto</button>
+                                    )}
+                                </div>
                             </div>
 
                             {/* Lado Direito: Formulário */}
@@ -185,12 +208,12 @@ const PerfilFuncionaria = () => {
                                     <h3 style={{marginBottom: '20px', fontWeight: '500'}}>Dados Pessoais</h3>
                                     
                                     <div className="input-group">
-                                        <label>Nome / Como deseja ser chamada (Não pode ser alterado)</label>
+                                        <label>Nome / Como deseja ser chamada</label>
                                         <input 
                                             type="text" 
                                             value={nome} 
-                                            readOnly 
-                                            style={{ backgroundColor: '#f0f0f0', color: '#666', cursor: 'not-allowed' }}
+                                            onChange={(e) => setNome(e.target.value)}
+                                            required
                                         />
                                     </div>
                                     

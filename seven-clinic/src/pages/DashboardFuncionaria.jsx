@@ -141,11 +141,7 @@ const DashboardFuncionaria = () => {
                             <p className="metric-value" style={{fontSize: '2.5rem', color: '#2c3e50', fontWeight: 'bold', margin: 0}}>{clientesUnicos}</p>
                             <p style={{fontSize: '0.8rem', color: '#95a5a6', marginTop: '5px'}}>Clientes únicos atendidos</p>
                         </div>
-                        <div className="metric-card" style={{background: '#fff', padding: '25px', borderRadius: '15px', boxShadow: '0 4px 15px rgba(0,0,0,0.05)', borderLeft: '5px solid #e67e22'}}>
-                            <h3 style={{color: '#7f8c8d', fontSize: '1rem', marginBottom: '10px', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: '600'}}>Agendamentos Concluídos</h3>
-                            <p className="metric-value" style={{fontSize: '2.5rem', color: '#2c3e50', fontWeight: 'bold', margin: 0}}>{agendamentosConcluidosGeral}</p>
-                            <p style={{fontSize: '0.8rem', color: '#95a5a6', marginTop: '5px'}}>Serviços finalizados com sucesso</p>
-                        </div>
+
                     </div>
                 </section>
 

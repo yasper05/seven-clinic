@@ -31,7 +31,7 @@ Este fluxo, além de oneroso do ponto de vista do tempo, gera diversos gargalos 
 3.  **Dependência Horária:** O negócio fica restrito ao horário comercial. Clientes que tentam agendar horários fora do expediente de atendimento não conseguem realizar a transação de imediato, o que abre margem para a desistência e para a busca na concorrência.
 4.  **Ausência de Métricas Financeiras Imediatas:** Consolidar os ganhos e calcular estatísticas de quais serviços possuem a maior saída exige um esforço monumental de tabulação manual ao fim do mês.
 
-A introdução do sistema **Seven Clinic** ataca frontalmente todas estas deficiências, operando de maneira contínua (24 horas por dia, 7 dias por semana) com verificações de integridade diretamente na camada do banco de dados relacional. Assim, todo cliente é capaz de mapear a disponibilidade real da equipe e alocar-se de maneira imediata sem qualquer necessidade de intervenção humana, enquanto a plataforma assegura a exclusividade mútua e resguarda perpetuamente os históricos de atendimentos na nuvem.
+A introdução do sistema **Seven Clinic** ataca frontalmente todas estas deficiências, operando de maneira contínua (24 horas por dia, 7 dias por semana) com verificações de integridade diretamente na camada do banco de dados relacional. Assim, todo cliente é capaz de mapear a disponibilidade real da equipe e alocar-se de maneira imediata sem qualquer necessidade de intervenção humana, enquanto a plataforma assegura a exclusividade mútua, notifica automaticamente os clientes via WhatsApp e resguarda perpetuamente os históricos de atendimentos na nuvem.
 
 ---
 
@@ -44,18 +44,18 @@ Os Requisitos Funcionais descrevem pormenorizadamente aquilo que o software tem 
 
 | ID | Regra de Negócio / Descrição da Funcionalidade | Prioridade |
 |:---|:---|:---|
-| **RF01** | O sistema deve possuir módulo de cadastramento no qual o interessado fornece nome completo, e-mail único, telefone de contato e senha privada. | Alta |
-| **RF02** | O sistema deve suportar uma mecânica de autenticação central, provendo o ingresso do usuário apenas mediante validação criptográfica de credenciais (Login). | Alta |
-| **RF03** | O sistema deverá possuir hierarquização através de controle de níveis de acesso (Roles/Perfis). Os usuários deverão ser classificados internamente, no mínimo, em: `cliente` (perfil padrão) e `profissional` (perfil com escalonamento de privilégios). | Alta |
-| **RF04** | A rota pública principal (Landing Page) deve dispor o arsenal de serviços do salão ("Cílios", "Unhas", "Sobrancelha", etc.) e um carrossel fotográfico para cativar o usuário. | Média |
-| **RF05** | Na área restrita ao cliente logado (`/painel-cliente`), o sistema deverá carregar dinamicamente uma lista temporal contendo o seu retrospecto particular de agendamentos. | Alta |
-| **RF06** | O cliente deve ter à disposição uma interface interativa via calendário e menus tipo *dropdown* para pleitear um novo agendamento, especificando: a modalidade de procedimento pretendido, a data do serviço e o bloco de horário almejado. | Alta |
-| **RF07** | Uma vez logada, a funcionária de estética (`/painel-funcionaria`) deverá ter acesso integral e em tempo real à listagem transacional dos agendamentos efetuados por todos os clientes para com ela, formatada por ordem de tempo. | Alta |
-| **RF08** | Somente a profissional poderá invocar rotinas de edição de estado no banco de dados para permutar o ciclo de vida do procedimento, transitando-o entre as flutuações de status: *pendente*, *concluido* ou *cancelado*. | Alta |
-| **RF09** | O sistema deve possuir um mecanismo protetivo contra esquecimento de senha, abrangendo criação de tokens avulsos vinculados ao E-mail daquele usuário para validação dupla no ato do Reset de credenciais. | Baixa |
+| **RF01** | O sistema deve possuir módulo de cadastramento no qual o interessado fornece nome completo, e-mail único, telefone de contato e senha privada. O e-mail deve ser validado via código OTP enviado via SMTP (Nodemailer). | Alta |
+| **RF02** | O sistema deve suportar uma mecânica de autenticação central, provendo o ingresso do usuário apenas mediante validação criptográfica de credenciais (Login via JWT). | Alta |
+| **RF03** | O sistema deverá possuir hierarquização através de controle de níveis de acesso. Os usuários deverão ser classificados internamente, no mínimo, em: `cliente` e `profissional`. | Alta |
+| **RF04** | A rota pública principal deve dispor o arsenal de serviços do salão ("Cílios", "Unhas", etc.) e um carrossel fotográfico para cativar o usuário. | Média |
+| **RF05** | Na área restrita ao cliente logado (`/painel-cliente`), o sistema deverá carregar dinamicamente uma lista temporal contendo o seu retrospecto particular de agendamentos e seu saldo devedor (taxas pendentes). | Alta |
+| **RF06** | O cliente deve ter à disposição uma interface interativa para pleitear um novo agendamento, especificando: a modalidade de procedimento pretendido, a data do serviço e o bloco de horário almejado. | Alta |
+| **RF07** | O sistema deve validar lógicas de negócios complexas. Por exemplo, para procedimentos específicos (como cílios de longa duração da profissional Laura Alencar), o sistema limitará a 1 agendamento por dia, validará carências para manutenções (exigindo procedimento completo prévio e no máximo 2 manutenções seguidas), e aplicará descontos automáticos (30% antes de 15 dias). | Alta |
+| **RF08** | Somente a profissional poderá invocar rotinas de edição de estado no banco de dados para permutar o ciclo de vida do procedimento, transitando-o entre as flutuações de status: *pendente*, *confirmado*, *concluído*, *sugerido*, *recusado* ou *cancelado / não compareceu*. | Alta |
+| **RF09** | Em casos de cancelamentos por parte do cliente com menos de 72h de antecedência, ou "não comparecimento" atestado pela profissional, o sistema deve automaticamente gerar e embutir uma taxa punitiva de R$50,00 no perfil do cliente, a ser cobrada no próximo agendamento. | Média |
+| **RF10** | O sistema deve enviar notificações ativas e automatizadas diretamente no WhatsApp do cliente e da profissional (utilizando `whatsapp-web.js` + `puppeteer`) informando em tempo real sempre que um agendamento for confirmado, remarcado ou cancelado. | Alta |
 
 ### 4.2 Requisitos Não Funcionais (RNF)
-Os Requisitos Não Funcionais dizem respeito aos padrões de qualidade, métricas de confiabilidade, infraestrutura da rede e normativas que balizarão o desenho da solução.
 
 | ID | Descrição do Padrão Tecnológico adotado | Restrição |
 |:---|:---|:---|
@@ -70,45 +70,27 @@ Os Requisitos Não Funcionais dizem respeito aos padrões de qualidade, métrica
 
 ## 5. METODOLOGIA DE CONSTRUÇÃO DA SOLUÇÃO
 
-O **Seven Clinic** adota a orientação a objetos e a separação de responsabilidades em quatro camadas lógicas coesas: **Domínio, Aplicação, Infraestrutura e Interface**, permitindo evolução com baixo acoplamento e alta coesão. O código de domínio e as regras de negócio concentram-se no ecossistema do backend, onde estão mapeadas as entidades fundamentais: `Usuario`, `Agendamento`, `Profissional` e `Procedimento`. Essa camada concentra regras invariantes, como a prevenção de conflitos de horário (*double-booking*), a normalização de dados cadastrais e a gestão do ciclo de vida dos atendimentos, permanecendo isolada de detalhes técnicos de persistência ou visualização.
+O **Seven Clinic** adota a orientação a objetos e a separação de responsabilidades em quatro camadas lógicas coesas: **Domínio, Aplicação, Infraestrutura e Interface**, permitindo evolução com baixo acoplamento e alta coesão.
 
-Em nível de visão geral, o Seven Clinic configura-se como um aplicativo **full-stack**, com backend em **Node.js (Express)**, frontend em **React 19 (Vite)** e serviços auxiliares orquestrados para automação de tarefas. A solução integra componentes de mensageria (WhatsApp) e disparos de e-mail, garantindo um ecossistema de comunicação robusto entre a clínica e o cliente final.
+O backend opera em **Node.js (Express)**, operando em sinergia com o frontend em **React 19 (Vite)**. A solução integra componentes de mensageria (WhatsApp) e disparos de e-mail, garantindo um ecossistema de comunicação robusto entre a clínica e o cliente final.
 
-A camada de **Aplicação** está concentrada em `seven-clinic-api/server.js`, que orquestra os casos de uso por meio de rotas e middlewares. O fluxo de autenticação é gerido de forma centralizada, enquanto a lógica de agendamento valida a disponibilidade de profissionais em tempo real antes de qualquer transação. Foram implementados fluxos para o gerenciamento completo de serviços e perfis, além de rotinas de auditoria que garantem a consistência dos dados exibidos nos dashboards administrativos.
+A camada de **Aplicação** está concentrada em `seven-clinic-api/server.js`, que orquestra os casos de uso por meio de rotas e middlewares. O fluxo de autenticação é gerido de forma centralizada, enquanto a lógica de agendamento não apenas valida a disponibilidade de profissionais em tempo real, mas aplica pesadas regras do nicho de estética: validação de histórico do cliente, bloqueio de múltiplas manutenções seguidas e inserção de multas (*no-show fees*) automáticas para clientes que cancelam de última hora.
 
-A **Infraestrutura** localiza-se em `seven-clinic-api/db.js` e implementa serviços técnicos como a persistência em **SQLite3**, utilizando integridade referencial e constraints de unicidade. A segurança é reforçada pelo uso de **JSON Web Tokens (JWT)** para gestão de sessões e **Bcrypt.js** para proteção de senhas conforme as diretrizes da OWASP (OWASP, 2025). Adicionalmente, a infraestrutura conta com o **node-cron** para agendamento de tarefas, **Nodemailer** para comunicação via e-mail e a biblioteca **whatsapp-web.js** para automação de notificações, permitindo uma operação resiliente e escalável.
+A **Infraestrutura** implementa a persistência em **SQLite3**, utilizando integridade referencial. A segurança é reforçada pelo uso de **JSON Web Tokens (JWT)** para gestão de sessões e **Bcrypt.js** para proteção de senhas. Adicionalmente, a infraestrutura conta com o **node-cron** para agendamento de tarefas, **Nodemailer** para validações de e-mail com códigos de 6 dígitos e a biblioteca **whatsapp-web.js** para automação de notificações em tempo real.
 
-A **Interface** é dividida entre a **API Restful** e o frontend em `seven-clinic/src`. A API publica endpoints como `POST /login`, `POST /agendamentos` e `GET /servicos`, organizando políticas de autorização baseadas em roles (Cliente/Profissional). No frontend, em **React**, além das telas de agendamento e cadastro, foram implementados dashboards com listagens dinâmicas e proteção de rotas privadas, preservando o estado global da aplicação via **Context API** e garantindo responsividade através de estilos centralizados em CSS puro (META OPEN SOURCE, 2025).
+A **Interface** é dividida entre a API Restful e o frontend em `seven-clinic/src`. A API publica endpoints que gerenciam autorização baseadas em roles. No frontend, foram implementados dashboards protegidos, preservando o estado global da aplicação e garantindo responsividade via CSS puro.
 
 ### 5.1 FUNDAMENTAÇÃO TÉCNICA DAS ESCOLHAS
 
-O backend utiliza **Node.js com Express** por sua alta performance em operações não-bloqueantes, sendo ideal para sistemas de agendamento com alta concorrência (EXPRESSJS, 2025). A autenticação utiliza armazenamento por hash via **Bcrypt** e emissão de **JWT** com validade temporal; a validação de assinatura e expiração é executada em cada requisição protegida, o que garante o logout automático por inatividade ou expiração do ticket (IETF, 2015).
+O backend utiliza **Node.js com Express** por sua alta performance em operações assíncronas. A autenticação utiliza armazenamento por hash via **Bcrypt** e emissão de **JWT** com validade temporal (IETF, 2015).
 
-Complementarmente ao núcleo da API, foi integrada a biblioteca **whatsapp-web.js**, permitindo que o sistema atue como um gateway de comunicação ativa. Esse serviço encapsula a complexidade do protocolo de mensagens, permitindo que a clínica automatize lembretes de agendamento. O uso de **Puppeteer** (via integração com o serviço de WhatsApp) permite ainda o processamento de visualizações e, em versões futuras, a geração de relatórios de prontuários em PDF diretamente do servidor.
+Complementarmente ao núcleo da API, o diferencial do TCC consiste na integração com a biblioteca **whatsapp-web.js** manipulada via **Puppeteer**. Em vez de depender de APIs caras e fechadas (como a API Oficial da Meta), o sistema cria uma sessão local simulando um navegador. Isso permite que a clínica atue como um bot proativo: se a profissional aceita um agendamento, o cliente recebe instantaneamente um *WhatsApp* de confirmação. Se o cliente cancela o agendamento de madrugada, a profissional recebe um *WhatsApp* de alerta para reorganizar sua agenda.
 
-O banco de dados é **SQLite3**, com integridade referencial aplicada no esquema e índices em colunas críticas como `data` e `horario` na tabela de agendamentos, o que sustenta a performance das consultas de disponibilidade. O acesso aos dados é mediado por uma camada de persistência que isola as queries SQL do restante da lógica de aplicação, facilitando manutenções futuras e possíveis migrações de banco (SQLITE, 2025).
-
-O frontend foi construído com **React e Javascript**, com guarda de rotas privadas, interceptação automática do cabeçalho `Authorization` via **Axios** e remoção do token ao detectar expiração. A estrutura modular do frontend facilita a adição de novas funcionalidades, como gráficos e dashboards avançados, sem impactar o núcleo da aplicação (AXIOS, 2025; META OPEN SOURCE, 2025).
-
-### 5.2 INFRAESTRUTURA DE DESENVOLVIMENTO E EXECUÇÃO
-
-O projeto utiliza variáveis de ambiente fornecidas por arquivos `.env` para manter chaves de segurança e strings de conexão fora do versionamento de código. Essa configuração permite que o sistema seja facilmente adaptado para diferentes ambientes (desenvolvimento/produção). A execução local é facilitada pelo uso de **Nodemon** no backend e **Vite** no frontend, garantindo recarga automática a cada alteração de código e agilizando o ciclo de desenvolvimento.
-
-Há ainda suporte para rotinas de tarefas agendadas via **node-cron**, que podem ser configuradas para realizar dumps automáticos do banco de dados SQLite em horários pré-definidos, garantindo a resiliência da solução e a segurança contra perda de dados acidentais.
-
-### 5.3 INTEGRAÇÃO DOS COMPONENTES OPERANTES
-
-A integração dos componentes operantes é realizada por meio de uma **API RESTful**, que permite a comunicação assíncrona entre o frontend e o backend. O frontend consome os serviços expostos utilizando o Axios para gerenciar requisições HTTP e tratamento de erros. A autenticação é centralizada no backend, que emite tokens JWT para o frontend, garantindo a segurança de cada operação transacional (IETF, 2015).
-
-Os endpoints da API recebem payloads JSON, aplicam as regras do Domínio e consultam a camada de persistência. O fluxo de agendamento, por exemplo, verifica se a combinação profissional/data/hora já existe antes de confirmar a reserva. O carregamento de serviços e disponibilidades na interface ocorre dinamicamente a partir do banco, garantindo que o usuário sempre visualize informações atualizadas.
-
-Além disso, a integração com o **Nodemailer** permite o envio de e-mails de confirmação e recuperação de senha, enquanto o **whatsapp-web.js** abre caminho para notificações em tempo real. Essas integrações dependem de um esquema relacional bem definido, onde chaves estrangeiras asseguram a consistência entre usuários e seus respectivos agendamentos, refletindo a robustez do design orientado a objetos aplicado ao projeto Seven Clinic.
+O banco de dados é o **SQLite3**. A escolha do SQLite justifica-se inteiramente pelo escopo arquitetural inicial do projeto: um sistema que visa simplificar a operação de uma clínica sem exigir servidores complexos ou custos com DBaaS (Database as a Service) no primeiro momento (SQLITE, 2025).
 
 ---
 
 ## 6. DIAGRAMAS DA METODOLOGIA OO
-
-Os diagramas abaixo seguem as normas da UML (Unified Modeling Language) e ilustram o comportamento e a estrutura dos objetos e atores do sistema.
 
 ### 6.1 Diagrama de Casos de Uso
 O diagrama de *Use Cases* ilustra macroscopicamente as interações inerentes ao sistema operante, circundando quais ações se aplicam aos Atores mapeados.
@@ -122,13 +104,13 @@ flowchart LR
     %% Sistema Seven Clinic
     subgraph Sistema Seven Clinic
         direction TB
-        UC1(UC01. Realizar Cadastro)
-        UC2(UC02. Efetuar Login)
+        UC1(UC01. Realizar Cadastro com OTP)
+        UC2(UC02. Efetuar Login JWT)
         UC3(UC03. Solicitar Agendamento)
-        UC4(UC04. Consultar Histórico)
+        UC4(UC04. Consultar Histórico e Taxas)
         UC5(UC05. Redefinir Senha)
-        UC6(UC06. Alterar Status do Agendamento)
-        UC7(UC07. Gerenciar Agenda Geral)
+        UC6(UC06. Alterar Status e Multar Cliente)
+        UC7(UC07. Gerenciar Agenda e Bloqueios)
     end
     
     %% Relacionamentos do Cliente
@@ -146,183 +128,49 @@ flowchart LR
 ```
 
 ### 6.2 Especificação de Caso de Uso
-As especificações detalham as etapas transacionais para a execução dos fluxos principais. A seguir, a especificação documentada do Caso de Uso de Agendamento.
 
 **Caso de Uso: UC03 – Solicitar Agendamento**
 *   **Ator Primário:** Cliente Cadastrado.
-*   **Resumo:** Permite que o cliente logado no sistema selecione um serviço estético, escolha uma data e um horário, e firme o agendamento no banco de dados.
-*   **Pré-condições:** O cliente deve possuir cadastro e estar autenticado no sistema (Token JWT válido).
+*   **Resumo:** Permite que o cliente logado no sistema selecione um serviço estético, escolha uma data e um horário, e firme o agendamento no banco de dados, estando sujeito às regras de negócio da profissional selecionada.
 *   **Fluxo Principal (Happy Path):**
     1. O cliente acessa a rota restrita do seu Painel.
     2. O cliente clica no botão "Novo Agendamento".
-    3. O sistema exibe um formulário contendo opções de "Serviços", um campo de "Data" e um de "Horário".
-    4. O cliente preenche os dados e submete o formulário.
-    5. O sistema intercepta o envio e despacha a requisição HTTP.
-    6. O Backend valida as regras de negócio e verifica se não há *double booking*.
-    7. O sistema grava o novo agendamento no banco de dados.
-    8. O sistema retorna uma mensagem de sucesso ("Procedimento Criado") e atualiza o histórico na tela do cliente.
-*   **Fluxo Alternativo (Choque de Horários):**
-    *   *No passo 6 do fluxo principal*, caso o Backend detecte que o horário selecionado já está ocupado, ele recusa a gravação.
-    *   O sistema retorna um erro 400 Bad Request.
-    *   A interface notifica o cliente do choque de horário, instruindo-o a escolher um *slot* diferente.
+    3. O cliente preenche serviço, data e horário e submete o formulário.
+    4. O Backend valida as regras de exclusividade e verifica se não há *double booking*.
+    5. O Backend aplica regras de negócio adicionais (ex: se for manutenção de cílios, valida se o cliente tem histórico de aplicação completa em menos de 15 dias para conceder desconto).
+    6. O Backend checa se o cliente possui taxas pendentes de multas anteriores e as embute no valor final.
+    7. O sistema grava o agendamento no banco.
+    8. A interface notifica o cliente do sucesso e a API prepara a notificação de WhatsApp.
+*   **Fluxo Alternativo (Violação de Regra de Negócio):**
+    *   *No passo 5 do fluxo principal*, caso o Backend detecte que o cliente está agendando uma segunda manutenção consecutiva sem uma nova aplicação.
+    *   O sistema recusa a gravação e emite um HTTP 400.
+    *   A tela exibe a regra da clínica: "Não é permitido realizar mais de 2 manutenções seguidas. Por favor, agende uma nova aplicação."
 
 ### 6.3 Diagrama de Sequência
-O diagrama de sequência relata a passagem de mensagens cronológicas e os agentes envolvidos para efetivar o agendamento via Cliente.
+O diagrama de sequência relata a passagem de mensagens cronológicas e os agentes envolvidos para efetivar o agendamento e notificação.
 
 ```mermaid
 sequenceDiagram
     autonumber
-    actor ClienteFisico as "Cliente"
+    actor Prof as "Profissional"
     participant ReactUI as "Interface (React)"
-    participant Roteador as "API (Node.js)"
-    participant Middle as "Auth Middleware"
+    participant API as "API (Node.js)"
     participant DB as "Banco (SQLite)"
+    participant Zap as "WhatsApp Web JS"
 
-    ClienteFisico->>ReactUI: Seleciona Data, Hora, Procedimento e clica Agendar
+    Prof->>ReactUI: Clica em 'Confirmar Agendamento' do Cliente
     activate ReactUI
-    ReactUI->>Roteador: Dispara HTTP POST /api/agendamentos
-    activate Roteador
-    Roteador->>Middle: Exige Processamento do JWT
-    activate Middle
-    Middle-->>Roteador: Valida ID do Usuário
-    deactivate Middle
-    Roteador->>DB: Executa QUERY de Insercao no banco
+    ReactUI->>API: PUT /api/agendamentos/{id}/status (status=confirmado)
+    activate API
+    API->>DB: UPDATE agendamentos SET status = 'confirmado'
     activate DB
-    DB-->>Roteador: Retorna Sucesso ID
+    DB-->>API: Retorna Sucesso (200 OK)
     deactivate DB
-    Roteador-->>ReactUI: Emite Resposta HTTP 201 Created
-    deactivate Roteador
-    ReactUI->>ClienteFisico: Renderiza Modal de Sucesso e atualiza lista
+    API->>Zap: dispara enviarMensagemWhatsApp(numeroCliente, "Seu agendamento foi confirmado!")
+    API-->>ReactUI: Emite Resposta HTTP 200 OK
+    deactivate API
+    ReactUI->>Prof: Mostra Toast de Sucesso e recarrega Datagrid
     deactivate ReactUI
-```
-
-### 6.4 Diagrama de Classes
-Este diagrama ilustra a abstração estática estrutural das Entidades Orientadas a Objetos que regem as regras de domínio.
-
-```mermaid
-classDiagram
-    class Usuario {
-        -int id
-        -String nome
-        -String email
-        -String senha_hash
-        -String telefone
-        -String foto_url
-        +autenticar() Boolean
-        +redefinirSenha()
-    }
-
-    class Cliente {
-        +listarMeusAgendamentos()
-        +solicitarAgendamento()
-        +excluirConta()
-    }
-
-    class Profissional {
-        -String role
-        +listarAgendaDiaria()
-        +atualizarStatusAgendamento()
-    }
-
-    class Procedimento {
-        -int id
-        -String nome_servico
-        -String descricao
-        -int duracao_minutos
-        -double preco
-        +obterDetalhes()
-    }
-
-    class Agendamento {
-        -int id
-        -String cliente
-        -String profissional
-        -String servico
-        -String data
-        -String horario
-        -String status
-        -boolean isBloqueio
-        +confirmar()
-        +cancelar()
-        +finalizar()
-    }
-
-    class RecuperacaoSenha {
-        -int id
-        -String email
-        -String token
-        -DateTime expiracao
-        +validarToken() Boolean
-    }
-
-    class VerificacaoEmail {
-        -int id
-        -String nome
-        -String email
-        -String senha_hash
-        -String telefone
-        -String codigo
-        -DateTime expiracao
-        +confirmarCodigo() Boolean
-    }
-
-    class HorarioTrabalho {
-        -int id
-        -int profissional_id
-        -int dia_semana
-        -String hora_inicio
-        -String hora_fim
-        +obterHorariosDisponiveis()
-    }
-
-    class HistoricoAtendimento {
-        -int id
-        -int agendamento_id
-        -int usuario_id
-        -int profissional_id
-        -String descricao
-        -DateTime data_registro
-        +adicionarFichaAnamnese()
-    }
-
-    class Avaliacao {
-        -int id
-        -int agendamento_id
-        -int usuario_id
-        -int nota
-        -String comentario
-        -DateTime data_avaliacao
-        +enviarFeedback()
-    }
-
-    class LogNotificacao {
-        -int id
-        -int usuario_id
-        -int agendamento_id
-        -String tipo_notificacao
-        -String mensagem
-        -String status
-        -DateTime data_envio
-        +registrarEnvio()
-    }
-
-    Usuario <|-- Cliente : Heranca
-    Usuario <|-- Profissional : Heranca
-    
-    Cliente "1" -- "0..*" Agendamento : solicita
-    Profissional "1" -- "0..*" Agendamento : realiza
-    Agendamento "*" -- "1" Procedimento : engloba
-    
-    Profissional "1" -- "0..*" HorarioTrabalho : possui
-    Agendamento "0..1" -- "0..1" HistoricoAtendimento : gera
-    Cliente "1" -- "0..*" HistoricoAtendimento : possui
-    Profissional "1" -- "0..*" HistoricoAtendimento : registra
-    
-    Agendamento "1" -- "0..1" Avaliacao : recebe
-    Cliente "1" -- "0..*" Avaliacao : avalia
-    
-    Usuario "1" -- "0..*" LogNotificacao : recebe
-    Agendamento "0..1" -- "0..*" LogNotificacao : gera
 ```
 
 ---
@@ -340,6 +188,7 @@ erDiagram
         string senha_hash
         string telefone
         string foto_url
+        float taxa_pendente
     }
 
     PROFISSIONAIS {
@@ -352,14 +201,6 @@ erDiagram
         string role
     }
 
-    PROCEDIMENTOS {
-        int id PK
-        string nome_servico
-        string descricao
-        int duracao_minutos
-        float preco
-    }
-
     AGENDAMENTOS {
         int id PK
         string cliente
@@ -369,101 +210,53 @@ erDiagram
         string horario
         string status
         boolean isBloqueio
-    }
-
-    RECUPERACAO_SENHA {
-        int id PK
-        string email
-        string token
-        datetime expiracao
+        boolean isManutencao
+        float valor
     }
 
     VERIFICACAO_EMAIL {
         int id PK
-        string nome
         string email UK
-        string senha_hash
-        string telefone
         string codigo
         datetime expiracao
-    }
-
-    HORARIOS_TRABALHO {
-        int id PK
-        int profissional_id FK
-        int dia_semana
-        string hora_inicio
-        string hora_fim
-    }
-
-    HISTORICO_ATENDIMENTO {
-        int id PK
-        int agendamento_id FK
-        int usuario_id FK
-        int profissional_id FK
-        string descricao
-        datetime data_registro
-    }
-
-    AVALIACOES {
-        int id PK
-        int agendamento_id FK
-        int usuario_id FK
-        int nota
-        string comentario
-        datetime data_avaliacao
     }
 
     LOGS_NOTIFICACOES {
         int id PK
         int usuario_id FK
-        int agendamento_id FK
         string tipo_notificacao
         string mensagem
         string status
         datetime data_envio
     }
 
-    PROFISSIONAIS ||--o{ HORARIOS_TRABALHO : "possui"
-    USUARIOS ||--o{ HISTORICO_ATENDIMENTO : "possui"
-    PROFISSIONAIS ||--o{ HISTORICO_ATENDIMENTO : "registra"
-    AGENDAMENTOS ||--o| HISTORICO_ATENDIMENTO : "gera"
-    USUARIOS ||--o{ AVALIACOES : "faz"
-    AGENDAMENTOS ||--o| AVALIACOES : "recebe"
+    USUARIOS ||--o{ AGENDAMENTOS : "solicita"
+    PROFISSIONAIS ||--o{ AGENDAMENTOS : "realiza"
     USUARIOS ||--o{ LOGS_NOTIFICACOES : "recebe"
-    AGENDAMENTOS ||--o{ LOGS_NOTIFICACOES : "gera"
 ```
 
 ---
 
 ## 8. PLANO DE TESTES
 
-Com vistas a preservar a irrefutabilidade operacional, o cerne de qualidade do sistema contemplou Casos de Prova baseados na validação end-to-end de comportamentos.
-
 1.  **Testagem de Tolerância Concorrente Contra Double-Booking:**
-    *   **Cenário:** Dois clientes (Cliente A e Cliente B) tentam reservar exatamente o mesmo serviço, na mesma data e hora.
-    *   **Execução:** O Cliente A preenche os formulários às `10:00`. Logo em seguida, Cliente B tenta forçar a submissão para as `10:00` também.
-    *   **Resultado Esperado:** O Backend deve abortar a segunda transação, emitindo HTTP 400 Bad Request, informando o Cliente B que o horário encontra-se indisponível.
+    *   **Cenário:** Dois clientes tentam reservar o mesmo serviço na mesma data e hora.
+    *   **Resultado Esperado:** O Backend aborta a segunda transação, emitindo HTTP 400 Bad Request.
 
-2.  **Testagem de Acesso Direto a Rotas Protegidas:**
-    *   **Cenário:** Usuário não autenticado tenta acessar o `/painel-funcionaria` pela barra de endereços do navegador.
-    *   **Execução:** Ausência de JWT no localStorage. Navegador direcionado para rota estrita.
-    *   **Resultado Esperado:** O Componente `<ProtectedRoute>` no React avalia a nulidade das credenciais e engatilha redirecionamento forçado para `/login`.
-
-3.  **Fluxo de Sucesso do Agendamento (Happy Path):**
-    *   **Cenário:** Conversão de fluxo padrão de agendamento.
-    *   **Execução:** Cliente agenda procedimento. Profissional efetua logon, visualiza no painel e clica em "Concluir".
-    *   **Resultado Esperado:** Alteração de status no banco de dados para `'concluído'` visualizada em tempo real por ambas as frentes.
+2.  **Testagem de Aplicação de Taxa de Ausência (No-Show Fee):**
+    *   **Cenário:** A profissional marca um agendamento de um cliente como "Não Compareceu".
+    *   **Execução:** O sistema executa a query de atualização do status. Na mesma transação, a trigger da API localiza o `cliente_id` e adiciona `+ 50` à coluna `taxa_pendente` da tabela de Usuários.
+    *   **Resultado Esperado:** O cliente recebe uma notificação via WhatsApp informando o ocorrido e o saldo devedor é atualizado para o próximo agendamento ser cobrado automaticamente.
 
 ---
 
 ## 9. CONCLUSÃO E TRABALHOS FUTUROS
 
-O desenvolvimento do sistema **Seven Clinic** demonstrou de forma contundente a viabilidade e a importância da transformação digital no setor de estética e beleza. Ao substituir processos manuais e passíveis de falhas — como o uso de agendas de papel e aplicativos de mensagens não integrados — por uma plataforma web centralizada, o projeto atingiu seu objetivo principal: otimizar a gestão de agendamentos e elevar a qualidade do atendimento ao cliente.
+O desenvolvimento do sistema **Seven Clinic** demonstrou de forma contundente a viabilidade da transformação digital no setor de estética e beleza. Ao substituir processos manuais por uma plataforma web centralizada, o projeto atingiu seu objetivo principal: otimizar a gestão de agendamentos com inteligência e robustez.
 
-A adoção de uma arquitetura orientada a objetos dividida em camadas lógicas, aliada ao uso de tecnologias modernas como **Node.js, React 19 e SQLite3**, resultou em um sistema altamente coeso, responsivo e seguro. A implementação de bloqueios transacionais no banco de dados mitigou com sucesso o problema de *double-booking*, enquanto o uso de tokens **JWT** e criptografia **Bcrypt** assegurou a privacidade dos dados sensíveis dos clientes e das profissionais.
+A adoção de tecnologias modernas como **Node.js, React 19 e SQLite3**, resultou em um sistema altamente responsivo. O grande diferencial da aplicação concentra-se na automação ativa das regras de negócio: a prevenção de conflitos de horário (*double-booking*), a automação de multas por desistências, o cálculo de carências para procedimentos de alta longevidade, e a notificação instantânea via **WhatsApp**.
 
-Como propostas para **trabalhos futuros**, sugere-se a expansão da aplicação mediante a integração com gateways de pagamento online (como PIX ou Stripe) para cobrança de sinais de agendamento, reduzindo as taxas de absenteísmo (*no-show*). Adicionalmente, a evolução da integração com a biblioteca `whatsapp-web.js` poderia permitir o desenvolvimento de um *chatbot* interativo, possibilitando que clientes desmarquem ou confirmem horários respondendo a mensagens automatizadas, alimentando o sistema de forma 100% autônoma.
+Como propostas para **trabalhos futuros**, sugere-se a expansão da aplicação mediante a integração com gateways de pagamento online (como PIX via API do Mercado Pago ou Stripe) para liquidação automática das taxas de absenteísmo no momento do agendamento. Adicionalmente, a evolução do bot no WhatsApp poderia permitir que clientes desmarquem ou confirmem horários respondendo "SIM" ou "NÃO" diretamente pelo aplicativo de mensagens, fechando o ecossistema de forma 100% autônoma.
 
 ---
 
@@ -471,28 +264,12 @@ Como propostas para **trabalhos futuros**, sugere-se a expansão da aplicação 
 
 ### 10.1 Referências Bibliográficas
 
-AXIOS. **Axios: Promise based HTTP client for the browser and node.js**. 2025. Disponível em: https://axios-http.com/. Acesso em: 27 abr. 2026.
+AXIOS. **Axios: Promise based HTTP client**. 2025. Disponível em: https://axios-http.com/. Acesso em: 27 abr. 2026.
 
-EXPRESSJS. **Express - Fast, unopinionated, minimalist web framework for Node.js**. 2025. Disponível em: https://expressjs.com/. Acesso em: 27 abr. 2026.
+EXPRESSJS. **Express - Web framework for Node.js**. 2025. Disponível em: https://expressjs.com/. Acesso em: 27 abr. 2026.
 
-IETF. **RFC 7519: JSON Web Token (JWT)**. Internet Engineering Task Force, 2015. Disponível em: https://datatracker.ietf.org/doc/html/rfc7519. Acesso em: 27 abr. 2026.
+IETF. **RFC 7519: JSON Web Token (JWT)**. 2015. Disponível em: https://datatracker.ietf.org/doc/html/rfc7519. Acesso em: 27 abr. 2026.
 
-META OPEN SOURCE. **React: A JavaScript library for building user interfaces**. 2025. Disponível em: https://react.dev/. Acesso em: 27 abr. 2026.
+META OPEN SOURCE. **React: A JavaScript library**. 2025. Disponível em: https://react.dev/. Acesso em: 27 abr. 2026.
 
-OWASP. **OWASP Password Storage Cheat Sheet**. Open Web Application Security Project, 2025. Disponível em: https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html. Acesso em: 27 abr. 2026.
-
-PRESSMAN, Roger S.; MAXIM, Bruce R. **Engenharia de Software: Uma Abordagem Profissional**. 9. ed. Porto Alegre: AMGH, 2021.
-
-SOMMERVILLE, Ian. **Engenharia de Software**. 10. ed. São Paulo: Pearson Education do Brasil, 2019.
-
-SQLITE. **SQLite: Small. Fast. Reliable. Choose any three**. 2025. Disponível em: https://www.sqlite.org/index.html. Acesso em: 27 abr. 2026.
-
-### 10.2 Anexos / Apêndices Fotográficos
-
-Registros capturados da operação visual e comportamental (Screenshots) para avaliação da banca:
-
-*   **ANEXO A:** Interface de Landing Page, demonstrando o cardápio interativo e design responsivo.
-*   **ANEXO B:** Tela de Formulário de Cadastro e Autenticação protegida do cliente.
-*   **ANEXO C:** Dashboard da Profissional demonstrando os DataGrids expansíveis de Agendamento.
-*   **ANEXO D:** Interações de e-mail e recuperação segura de senha efetuadas pelo componente de segurança.
-*   **FIGURAS DE 1 A 10:** Estrutura e DDL das Tabelas do Banco de Dados extraídas do script relacional.
+SQLITE. **SQLite: Small. Fast. Reliable.**. 2025. Disponível em: https://www.sqlite.org/index.html. Acesso em: 27 abr. 2026.
